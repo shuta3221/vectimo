@@ -3341,9 +3341,14 @@ function applyPresetToScene(scene, key) {
 let sceneSeq = 0;
 const newSceneId = () => `sc_${++sceneSeq}_${Date.now()}`;
 function getPartsChildren(root) {
-  let children = Array.from(root.children).filter(el => !["defs", "style", "title", "desc", "metadata"].includes(el.tagName));
-  if (children.length === 1 && children[0].tagName === "g") {
-    children = Array.from(children[0].children).filter(el => !["defs", "style", "title", "desc"].includes(el.tagName));
+  const skip = el => ["defs", "style", "title", "desc", "metadata"].includes(el.tagName);
+  let children = Array.from(root.children).filter(el => !skip(el));
+  let depth = 0;
+  while (children.length === 1 && children[0].tagName === "g" && depth < 4) {
+    const inner = Array.from(children[0].children).filter(el => !skip(el));
+    if (!inner.length) break;
+    children = inner;
+    depth++;
   }
   return children;
 }
@@ -7777,6 +7782,62 @@ function SvgMotionStudio() {
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [playing, playKey, seekT, activeId]);
+  const autoGroupManyParts = svgText => {
+    try {
+      const m = svgText.match(/^\s*(<svg[^>]*>)([\s\S]*?)(<\/svg>)\s*$/);
+      if (m) {
+        const inner = m[2];
+        const paths = inner.match(/<path\b[^>]*\/>/g);
+        if (paths && paths.length > 100 && paths.join("").length >= inner.replace(/\s+/g, "").length * 0.95) {
+          let out = "",
+            curFill = null,
+            groups = 0,
+            open = false;
+          for (const p of paths) {
+            const f = (p.match(/fill="([^"]*)"/) || [, "__none__"])[1];
+            if (f !== curFill) {
+              if (open) out += "</g>";
+              out += `<g data-sid="grp${groups++}">`;
+              open = true;
+              curFill = f;
+            }
+            out += p;
+          }
+          if (open) out += "</g>";
+          let head = m[1];
+          if (!/xmlns=/.test(head)) head = head.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"');
+          showToast(`パーツが非常に多いSVGのため、色ごとに自動グループ化しました（${paths.length}個 → ${groups}パーツ）`);
+          return head + out + m[3];
+        }
+      }
+    } catch (e) {}
+    try {
+      const parsed = parseSvg(svgText);
+      if (parsed.error) return svgText;
+      const kids = Array.from(parsed.root.children).filter(el => !["defs", "style", "title", "desc", "metadata"].includes(el.tagName));
+      if (kids.length <= 100) return svgText;
+      const doc = parsed.root.ownerDocument;
+      let curFill = null,
+        curG = null,
+        groups = 0;
+      for (const el of kids) {
+        const f = el.getAttribute && el.getAttribute("fill") || "__none__";
+        if (f !== curFill || !curG) {
+          curG = doc.createElementNS(SVGNS, "g");
+          curG.setAttribute("data-sid", `grp${groups++}`);
+          parsed.root.insertBefore(curG, el);
+          curFill = f;
+        }
+        curG.appendChild(el);
+      }
+      if (!parsed.root.getAttribute("xmlns")) parsed.root.setAttribute("xmlns", SVGNS);
+      const out = new XMLSerializer().serializeToString(parsed.root);
+      showToast(`パーツが非常に多いSVGのため、色ごとに自動グループ化しました（${kids.length}個 → ${groups}パーツ）`);
+      return out;
+    } catch (e) {
+      return svgText;
+    }
+  };
   const addScenesFromFiles = files => {
     const isSvg = f => f.name.toLowerCase().endsWith(".svg") || f.type === "image/svg+xml";
     const isImg = f => /^image\/(png|jpeg|jpg|webp|gif)$/.test(f.type) || /\.(png|jpe?g|webp|gif)$/i.test(f.name);
@@ -7792,7 +7853,7 @@ function SvgMotionStudio() {
         const r = new FileReader();
         r.onload = () => res({
           name: f.name.replace(/\.svg$/i, ""),
-          text: String(r.result),
+          text: autoGroupManyParts(String(r.result)),
           kind: "svg"
         });
         r.onerror = () => res(null);

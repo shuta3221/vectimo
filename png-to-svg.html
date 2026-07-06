@@ -1370,9 +1370,28 @@ if(typeof define === 'function' && define.amd){
         var preset=document.getElementById("preset").value;
         var opt={numberofcolors:+document.getElementById("colors").value, pathomit:preset==="detail"?4:(preset==="simple"?14:8), ltres:preset==="detail"?0.5:1, qtres:preset==="detail"?0.5:1, strokewidth:0, blurradius:0, roundcoords:1, viewbox:true};
         svgStr=ImageTracer.imagedataToSVG(data,opt);
+        // 連続する同色パスを<g>にまとめる（Vectimoで色ごとのパーツとして扱えるように＆パーツ数の爆発を防止）
+        try{
+          var mm=svgStr.match(/^\s*(<svg[^>]*>)([\s\S]*?)(<\/svg>)\s*$/);
+          if(mm){
+            var pths=mm[2].match(/<path\b[^>]*\/>/g)||[];
+            if(pths.length){
+              var out="",curFill=null,groups=0,open=false;
+              for(var i=0;i<pths.length;i++){
+                var fl=(pths[i].match(/fill="([^"]*)"/)||[0,"__none__"])[1];
+                if(fl!==curFill){if(open)out+="</g>";out+='<g data-sid="color'+(groups++)+'">';open=true;curFill=fl;}
+                out+=pths[i];
+              }
+              if(open)out+="</g>";
+              var head=mm[1];
+              if(head.indexOf("xmlns=")<0)head=head.replace("<svg",'<svg xmlns="http://www.w3.org/2000/svg"');
+              svgStr=head+out+mm[3];
+            }
+          }
+        }catch(ge){/* グループ化失敗時は元のまま */}
         var dst=document.getElementById("dst");dst.innerHTML=svgStr;
-        var layers=(svgStr.match(/<path/g)||[]).length;
-        document.getElementById("dstMeta").textContent=(svgStr.length/1024).toFixed(0)+"KB ・ パス数 "+layers+"（Vectimoでパーツとして扱えます）";
+        var layers=(svgStr.match(/<g /g)||[]).length||((svgStr.match(/<path/g)||[]).length);
+        document.getElementById("dstMeta").textContent=(svgStr.length/1024).toFixed(0)+"KB ・ 色パーツ "+layers+"個（Vectimoで色ごとに動かせます）";
         document.getElementById("actions").style.display="flex";
       }catch(e){ alert("変換に失敗しました: "+e.message); }
       document.getElementById("spin").style.display="none";run.disabled=false;
