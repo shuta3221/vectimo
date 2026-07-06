@@ -8272,15 +8272,16 @@ function SvgMotionStudio() {
         @keyframes apPan{0%{transform:translateX(-6px) scale(1.2)}100%{transform:translateX(6px) scale(1.2)}}
         @keyframes apPathArc{0%{transform:translate(-8px,0)}50%{transform:translate(-2px,-8px)}100%{transform:translate(0,0)}}
         @media (prefers-reduced-motion: reduce){*{animation-duration:.001ms !important;transition-duration:.001ms !important}}
-        /* --- 簡易ライトモード：UIを反転し、実際の色が必要な要素だけ再反転 --- */
-        html.vc-light body{filter:invert(1) hue-rotate(180deg);background:#EAEAF0}
-        html.vc-light .previewBox, html.vc-light .previewBox *,
-        html.vc-light .sceneCard svg,
-        html.vc-light img, html.vc-light video,
-        html.vc-light input[type=color],
-        html.vc-light .vc-brand, html.vc-light .vc-truecolor,
-        html.vc-light .apreview .adot{filter:invert(1) hue-rotate(180deg)}
-        html.vc-light .previewBox *{filter:none}
+        /* --- ライトモード：UI（ヘッダー/左右パネル/フッター）のみ反転。プレビューを含む中央カラムはダークのまま＝アニメSVGにフィルタが乗らず軽い --- */
+        html.vc-light body{background:#EAEAF0}
+        html.vc-light header, html.vc-light footer,
+        html.vc-light .vc-main > *:not(:nth-child(2)){filter:invert(1) hue-rotate(180deg)}
+        /* 実際の色が必要な要素は再反転して実色を維持 */
+        html.vc-light header img, html.vc-light header video,
+        html.vc-light .vc-main > *:not(:nth-child(2)) img,
+        html.vc-light .vc-main > *:not(:nth-child(2)) video,
+        html.vc-light .vc-main > *:not(:nth-child(2)) input[type=color],
+        html.vc-light .vc-brand, html.vc-light .vc-truecolor{filter:invert(1) hue-rotate(180deg)}
         html.vc-light ::selection{background:#8B7CFF55}
         /* --- レスポンシブ（900px未満：3カラムを縦積みにして閲覧可能に） --- */
         @media (max-width: 900px){
