@@ -120,6 +120,9 @@
   .kv dd{margin:0;color:var(--tx2)}
   hr.soft{border:none;border-top:1px solid var(--line);margin:34px 0}
 </style>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"Vectimo（ベクティモ）使い方ガイド","description":"SVGや写真をつなげてテロップ・BGM付きのMP4動画をブラウザだけで作る無料ツールVectimoの使い方。操作手順・機能リファレンス・FAQ。","inLanguage":"ja","url":"https://vectimo.vercel.app/vectimo-guide.html","image":"https://vectimo.vercel.app/vectimo-ogp.png","about":{"@type":"SoftwareApplication","name":"Vectimo","url":"https://vectimo.vercel.app/"}}
+</script>
 </head>
 <body>
 
@@ -462,8 +465,8 @@
     <section id="changelog">
       <h2><span class="n">16</span>更新履歴</h2>
       <p class="lead">機能を追加したら、このセクションに追記していきます。</p>
-      <div class="card">
-        <h3 style="margin-top:0">2026-07-06</h3>
+      <details class="card" open>
+        <summary style="cursor:pointer;font-weight:700;font-size:1.05em;padding:2px 0">2026-07-06</summary>
         <ul style="margin-bottom:0">
           <li><b>文字（テキスト）をパーツとして追加</b>できるように。レイヤー順・全アニメ（軌道など）・ドラッグ・色変更・透過率がテロップと違って全部使えます</li>
           <li><b>ライトモード</b>：上部バーの ☀／🌙 ボタンで切替（選択は記憶されます）</li>
@@ -475,9 +478,9 @@
           <li>MP4書き出しに<b>用途プリセット</b>（Reels/TikTok・正方形・YouTube横型・元サイズ）を追加。比率とfpsをまとめて設定</li>
           <li>☰メニューと最初の画面から<b>使い方ガイド</b>を開けるように</li>
         </ul>
-      </div>
-      <div class="card">
-        <h3 style="margin-top:0">2026-07-05</h3>
+      </details>
+      <details class="card">
+        <summary style="cursor:pointer;font-weight:700;font-size:1.05em;padding:2px 0">2026-07-05</summary>
         <ul>
           <li><b>軌道（パス）アニメーション</b>を追加：弧・山なり・波・ジグザグ・跳ね・円・らせんの7種</li>
           <li>図形の塗りに<b>グラデーション</b>（2色＋角度）を選べるように</li>
@@ -498,9 +501,9 @@
           <li>操作の発見性向上：初回<b>操作ヒント</b>と、パーツ選択時の常設ヒントを追加（☰メニューから再表示可）</li>
           <li>シーンをたくさん並べても<b>横スクロールバーを非表示</b>に</li>
         </ul>
-      </div>
-      <div class="card">
-        <h3 style="margin-top:0">2026-07-04</h3>
+      </details>
+      <details class="card">
+        <summary style="cursor:pointer;font-weight:700;font-size:1.05em;padding:2px 0">2026-07-04</summary>
         <ul style="margin-bottom:0">
           <li><b>動きのコピー／貼り付け・カスタムプリセット保存</b>を追加。凝った動きを他パーツや別シーンで再利用でき、プロジェクトJSONにも保存されます</li>
           <li><b>写真（PNG/JPG/WebP）をシーンとして読み込み</b>可能に。スライドショー用途に対応</li>
@@ -515,8 +518,8 @@
           <li>テロップの<b>フォント選択（6種）</b>、シーン切替に<b>モーフ</b>を追加</li>
           <li>サービス名を <b>Vectimo</b> にリブランド</li>
         </ul>
-      </div>
-    </section>
+      </details>
+      </section>
 
   </main>
 </div>

@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Vectimo（ベクティモ） — SVGモーションスタジオ</title>
-<meta name="description" content="複数のSVGをシーンとしてつなげて、テロップ・BGM付きのMP4動画をブラウザだけで作れるモーションスタジオ。">
+<title>Vectimo（ベクティモ）| SVG・写真から動画を作る無料ブラウザツール</title>
+<meta name="description" content="VectimoはSVGや写真をつなげてテロップ・BGM付きのMP4動画を作れる無料ツール。インストール不要・ブラウザ完結。SNS広告やReels、思い出のスライドショー作りに。">
 <meta property="og:title" content="Vectimo（ベクティモ）">
 <meta property="og:description" content="SVGをつなげてアニメーション動画に。テロップ・BGM・MP4書き出しまでブラウザ完結。">
 <meta property="og:type" content="website">
@@ -12,6 +12,9 @@
 <meta property="og:url" content="https://vectimo.vercel.app/">
 <meta property="og:image" content="https://vectimo.vercel.app/vectimo-ogp.png">
 <meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"Vectimo（ベクティモ）","url":"https://vectimo.vercel.app/","description":"SVGや写真をつなげてテロップ・BGM付きのMP4動画を作れる無料のブラウザ完結動画作成ツール。","applicationCategory":"MultimediaApplication","operatingSystem":"Web","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"image":"https://vectimo.vercel.app/vectimo-ogp.png"}
+</script>
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2220%22%20fill%3D%22%2314161C%22%2F%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%220%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23FFFFFF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%238B5CF6%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Cpath%20d%3D%22M12%2024%20H28%20L42%2066%20L53%2046%20L62%2058%20L77%2024%20H90%20V90%20H79%20V48%20L64%2078%20L53%2063%20L44%2086%20H35%20Z%22%20fill%3D%22url(%23g)%22%2F%3E%3C%2Fsvg%3E">
 <style>html,body{margin:0;background:#14161C}#err{display:none;position:fixed;inset:auto 12px 12px 12px;background:#3A1D24;border:1px solid #7A3B4A;color:#FFB3C0;padding:12px 16px;border-radius:10px;font:13px/1.6 sans-serif;z-index:999;white-space:pre-wrap}</style>
@@ -8253,6 +8256,14 @@ function SvgMotionStudio() {
         html.vc-light .apreview .adot{filter:invert(1) hue-rotate(180deg)}
         html.vc-light .previewBox *{filter:none}
         html.vc-light ::selection{background:#8B7CFF55}
+        /* --- レスポンシブ（900px未満：3カラムを縦積みにして閲覧可能に） --- */
+        @media (max-width: 900px){
+          .vc-main{display:flex !important;flex-direction:column !important;overflow-y:auto !important}
+          .vc-main > *{width:100% !important;max-width:100% !important;border-left:none !important;border-right:none !important;border-bottom:1px solid #262B38}
+          .col-scroll{max-height:none !important;overflow:visible !important}
+          body, #root > div{height:auto !important;min-height:100vh;overflow:auto !important}
+          header{position:sticky;top:0;z-index:20;background:#14161C}
+        }
         .col-scroll{overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none}
         .col-scroll::-webkit-scrollbar{display:none}
         .hbar-noscroll::-webkit-scrollbar{display:none}
@@ -9117,6 +9128,7 @@ function SvgMotionStudio() {
   }, "\uFF0B \u7D20\u6750\u3092\u8FFD\u52A0"))) : parsed.error ? React.createElement("div", {
     style: S.errorBox
   }, parsed.error) : React.createElement("div", {
+    className: "vc-main",
     style: S.main
   }, React.createElement("aside", {
     style: S.leftPanel
