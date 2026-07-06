@@ -92,7 +92,7 @@ footer a{color:var(--sub);text-decoration:none;margin:0 10px}
 
   <div class="actions" id="actions" style="display:none">
     <button class="btn" id="dl">SVGをダウンロード</button>
-    <a class="btn ghost" href="app.html" target="_blank">Vectimoで動画にする →</a>
+    <button class="btn ghost" id="toApp">Vectimoで動画にする →</button>
   </div>
 
   <div class="note">
@@ -1385,6 +1385,11 @@ if(typeof define === 'function' && define.amd){
               if(open)out+="</g>";
               var head=mm[1];
               if(head.indexOf("xmlns=")<0)head=head.replace("<svg",'<svg xmlns="http://www.w3.org/2000/svg"');
+              // width/heightが無いと貼り付け先で高さ0に潰れることがあるためviewBoxから付与
+              if(!/\bwidth\s*=/.test(head)){
+                var vb=head.match(/viewBox\s*=\s*["']\s*[-\d.]+[\s,]+[-\d.]+[\s,]+([\d.]+)[\s,]+([\d.]+)/);
+                if(vb)head=head.replace("<svg",'<svg width="'+vb[1]+'" height="'+vb[2]+'"');
+              }
               svgStr=head+out+mm[3];
             }
           }
@@ -1396,6 +1401,14 @@ if(typeof define === 'function' && define.amd){
       }catch(e){ alert("変換に失敗しました: "+e.message); }
       document.getElementById("spin").style.display="none";run.disabled=false;
     },30);
+  });
+  document.getElementById("toApp").addEventListener("click",function(){
+    if(!svgStr){alert("先に画像をSVGに変換してください");return;}
+    try{
+      if(svgStr.length>3800000){alert("SVGが大きいため自動連携できません。「SVGをダウンロード」して、Vectimoの「＋ 素材を追加」から読み込んでください。");return;}
+      localStorage.setItem("vectimo_import",svgStr);
+      window.open("app.html?from=convert","_blank");
+    }catch(e){alert("連携に失敗しました。SVGをダウンロードしてVectimoに読み込んでください。");}
   });
   document.getElementById("dl").addEventListener("click",function(){
     var b=new Blob([svgStr],{type:"image/svg+xml"});
