@@ -2762,6 +2762,15 @@ export default function SvgMotionStudio() {
     if (!scenes.length) return;
     const t = setTimeout(() => {
       try {
+        // まず軽い概算チェック（重い文字列化の前にサイズで足切り。大きいプロジェクトの自動保存はスキップ＝フリーズ防止）
+        let approx = (bgm?.src?.length || 0);
+        for (const s of scenes) {
+          approx += (s.svgText?.length || 0);
+          for (const a of getSceneAudios(s) || []) approx += (a.src?.length || 0);
+          for (const v of Object.values(s.videoParts || {})) approx += (v.src?.length || 0);
+          if (approx > 3_800_000) break;
+        }
+        if (approx > 3_800_000) return; // 保存容量超え：スキップ（手動の「素材ごと保存」を利用）
         const data = {
           version: 3, frame, customPresets, hintsDone, savedAt: Date.now(),
           bgm: bgm && bgm.src?.startsWith("data:") ? bgm : null,
@@ -2772,7 +2781,7 @@ export default function SvgMotionStudio() {
         const json = JSON.stringify(data);
         if (json.length < 4_500_000) { window.localStorage?.setItem(AUTOSAVE_KEY, json); setHasAutosave(true); }
       } catch (e) { /* 容量超過などは黙ってスキップ */ }
-    }, 1500);
+    }, 2500);
     return () => clearTimeout(t);
   }, [scenes, frame, customPresets, hintsDone, bgm]);
   const restoreAutosave = () => {
@@ -2841,6 +2850,16 @@ export default function SvgMotionStudio() {
   // wheelリスナー内から最新のselected/sceneを参照するためのref
   const liveRef = useRef({});
   liveRef.current = { selected, sceneId: scene?.id };
+  // 選択中パーツの図形情報（svgTextか選択が変わったときだけ解析。毎レンダー解析は再生時フリーズの原因）
+  const selShapeInfo = useMemo(() => {
+    if (!scene || !selected || !selected.startsWith("p")) return null;
+    try {
+      const pc = parseSvg(scene.svgText).children[+selected.slice(1)];
+      if (!pc || !pc.hasAttribute || !pc.hasAttribute("data-shape")) return null;
+      const t = pc.querySelector("[fill]") || pc;
+      return { shape: pc.getAttribute("data-shape"), fill: (t.getAttribute && t.getAttribute("fill")) || "#8B7CFF" };
+    } catch (e) { return null; }
+  }, [scene && scene.svgText, selected]);
   const selectedRef = useRef(null);
   selectedRef.current = selected;
 
@@ -3993,11 +4012,9 @@ export default function SvgMotionStudio() {
                 <button className="btn" style={{ ...S.ghostBtn, color: "#FF8FA3", padding: "7px 8px", fontSize: 12, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5 }} onClick={() => deletePart(selected)} title="このパーツを削除（Delete）"><Icon name="trash" size={13} />このパーツを削除</button>
 
                 {(() => {
-                  const pc = parseSvg(scene.svgText).children[+selected.slice(1)];
-                  const isShape = pc && pc.hasAttribute && pc.hasAttribute("data-shape");
-                  if (!isShape) return null;
-                  const cur = (() => { const t = pc.querySelector("[fill]") || pc; return t.getAttribute && t.getAttribute("fill") || "#8B7CFF"; })();
-                  const curShape = pc.getAttribute("data-shape");
+                  if (!selShapeInfo) return null;
+                  const cur = selShapeInfo.fill;
+                  const curShape = selShapeInfo.shape;
                   return (
                     <>
                       <div>

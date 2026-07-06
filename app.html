@@ -7282,6 +7282,14 @@ function SvgMotionStudio() {
     if (!scenes.length) return;
     const t = setTimeout(() => {
       try {
+        let approx = bgm?.src?.length || 0;
+        for (const s of scenes) {
+          approx += s.svgText?.length || 0;
+          for (const a of getSceneAudios(s) || []) approx += a.src?.length || 0;
+          for (const v of Object.values(s.videoParts || {})) approx += v.src?.length || 0;
+          if (approx > 3_800_000) break;
+        }
+        if (approx > 3_800_000) return;
         const data = {
           version: 3,
           frame,
@@ -7307,7 +7315,7 @@ function SvgMotionStudio() {
           setHasAutosave(true);
         }
       } catch (e) {}
-    }, 1500);
+    }, 2500);
     return () => clearTimeout(t);
   }, [scenes, frame, customPresets, hintsDone, bgm]);
   const restoreAutosave = () => {
@@ -7433,6 +7441,20 @@ function SvgMotionStudio() {
     selected,
     sceneId: scene?.id
   };
+  const selShapeInfo = useMemo(() => {
+    if (!scene || !selected || !selected.startsWith("p")) return null;
+    try {
+      const pc = parseSvg(scene.svgText).children[+selected.slice(1)];
+      if (!pc || !pc.hasAttribute || !pc.hasAttribute("data-shape")) return null;
+      const t = pc.querySelector("[fill]") || pc;
+      return {
+        shape: pc.getAttribute("data-shape"),
+        fill: t.getAttribute && t.getAttribute("fill") || "#8B7CFF"
+      };
+    } catch (e) {
+      return null;
+    }
+  }, [scene && scene.svgText, selected]);
   const selectedRef = useRef(null);
   selectedRef.current = selected;
   const attachWheelZoom = el => {
@@ -10274,14 +10296,9 @@ function SvgMotionStudio() {
     name: "trash",
     size: 13
   }), "\u3053\u306E\u30D1\u30FC\u30C4\u3092\u524A\u9664"), (() => {
-    const pc = parseSvg(scene.svgText).children[+selected.slice(1)];
-    const isShape = pc && pc.hasAttribute && pc.hasAttribute("data-shape");
-    if (!isShape) return null;
-    const cur = (() => {
-      const t = pc.querySelector("[fill]") || pc;
-      return t.getAttribute && t.getAttribute("fill") || "#8B7CFF";
-    })();
-    const curShape = pc.getAttribute("data-shape");
+    if (!selShapeInfo) return null;
+    const cur = selShapeInfo.fill;
+    const curShape = selShapeInfo.shape;
     return React.createElement(React.Fragment, null, React.createElement("div", null, React.createElement("div", {
       style: {
         display: "flex",
