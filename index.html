@@ -2447,6 +2447,26 @@ const OV_FONTS = {
   mono: {
     label: "等幅",
     css: "'DM Mono','Courier New',monospace"
+  },
+  pop: {
+    label: "ポップ体",
+    css: "'HGP創英角ﾎﾟｯﾌﾟ体','HGPSoeiKakupoptai','Chalkboard SE','Comic Sans MS','Noto Sans JP',sans-serif"
+  },
+  kyokasho: {
+    label: "教科書体",
+    css: "'UD デジタル 教科書体 N-R','UD Digi Kyokasho N-R','YuKyokasho','Hiragino Mincho ProN',serif"
+  },
+  gyosho: {
+    label: "行書体",
+    css: "'HGS行書体','HGSGyoshotai','Hiragino Mincho ProN','Yu Mincho',cursive"
+  },
+  script: {
+    label: "筆記体（欧文）",
+    css: "'Segoe Script','Brush Script MT','Snell Roundhand',cursive"
+  },
+  serifEn: {
+    label: "セリフ（欧文）",
+    css: "Georgia,'Times New Roman','Noto Serif JP',serif"
   }
 };
 function getSceneAudios(s) {
@@ -7078,6 +7098,26 @@ function SvgMotionStudio() {
   const [animClip, setAnimClip] = useState(null);
   const [customPresets, setCustomPresets] = useState([]);
   const [fileMenu, setFileMenu] = useState(false);
+  const [lightMode, setLightMode] = useState(() => {
+    try {
+      return window.localStorage?.getItem("vectimo_theme") === "light";
+    } catch (e) {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      window.localStorage?.setItem("vectimo_theme", lightMode ? "light" : "dark");
+    } catch (e) {}
+    document.documentElement.classList.toggle("vc-light", lightMode);
+  }, [lightMode]);
+  const [mobileNotice, setMobileNotice] = useState(() => {
+    try {
+      return window.innerWidth < 700;
+    } catch (e) {
+      return false;
+    }
+  });
   const [hintsDone, setHintsDone] = useState(false);
   const wheelBoundRef = useRef(new WeakSet());
   const [pvZoom, setPvZoom] = useState("fit");
@@ -7207,6 +7247,77 @@ function SvgMotionStudio() {
     showToast("パーツを削除しました（Ctrl+Zで戻せます）");
   };
   deletePartRef.current = deletePart;
+  useEffect(() => {
+    if (!scenes.length) return;
+    const onBeforeUnload = e => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [scenes.length > 0]);
+  const AUTOSAVE_KEY = "vectimo_autosave_v1";
+  const [hasAutosave, setHasAutosave] = useState(false);
+  useEffect(() => {
+    try {
+      setHasAutosave(!!window.localStorage?.getItem(AUTOSAVE_KEY));
+    } catch (e) {}
+  }, []);
+  useEffect(() => {
+    if (!scenes.length) return;
+    const t = setTimeout(() => {
+      try {
+        const data = {
+          version: 3,
+          frame,
+          customPresets,
+          hintsDone,
+          savedAt: Date.now(),
+          bgm: bgm && bgm.src?.startsWith("data:") ? bgm : null,
+          scenes: scenes.map(s => ({
+            name: s.name,
+            svgText: s.svgText,
+            settings: s.settings,
+            duration: s.duration,
+            transition: s.transition,
+            overlays: s.overlays || [],
+            isImage: !!s.isImage,
+            audios: (getSceneAudios(s) || []).filter(a => a.src?.startsWith("data:")),
+            videoParts: Object.fromEntries(Object.entries(s.videoParts || {}).filter(([, v]) => v.src?.startsWith("data:")))
+          }))
+        };
+        const json = JSON.stringify(data);
+        if (json.length < 4_500_000) {
+          window.localStorage?.setItem(AUTOSAVE_KEY, json);
+          setHasAutosave(true);
+        }
+      } catch (e) {}
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [scenes, frame, customPresets, hintsDone, bgm]);
+  const restoreAutosave = () => {
+    try {
+      const raw = window.localStorage?.getItem(AUTOSAVE_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      const loaded = data.scenes.map(s => ({
+        id: newSceneId(),
+        videoParts: s.videoParts || {},
+        audios: s.audios || [],
+        ...s
+      }));
+      setScenesH(loaded);
+      if (data.frame) setFrame(data.frame);
+      if (Array.isArray(data.customPresets)) setCustomPresets(data.customPresets);
+      if (typeof data.hintsDone === "boolean") setHintsDone(data.hintsDone);
+      if (data.bgm) setBgm(data.bgm);
+      setActiveId(loaded[0].id);
+      const when = data.savedAt ? new Date(data.savedAt).toLocaleString("ja-JP") : "";
+      showToast(`✔ 前回の作業を復元しました${when ? `（${when} 保存）` : ""}`);
+    } catch (e) {
+      showToast("復元に失敗しました");
+    }
+  };
   const loadTemplate = tpl => {
     const data = tpl.make();
     const loaded = data.scenes.map(s => ({
@@ -8124,6 +8235,15 @@ function SvgMotionStudio() {
         @keyframes apPan{0%{transform:translateX(-6px) scale(1.2)}100%{transform:translateX(6px) scale(1.2)}}
         @keyframes apPathArc{0%{transform:translate(-8px,0)}50%{transform:translate(-2px,-8px)}100%{transform:translate(0,0)}}
         @media (prefers-reduced-motion: reduce){*{animation-duration:.001ms !important;transition-duration:.001ms !important}}
+        /* --- 簡易ライトモード：UIを反転し、実際の色が必要な要素だけ再反転 --- */
+        html.vc-light body{filter:invert(1) hue-rotate(180deg);background:#EAEAF0}
+        html.vc-light .previewBox, html.vc-light .previewBox *,
+        html.vc-light .sceneCard svg,
+        html.vc-light img, html.vc-light video,
+        html.vc-light input[type=color],
+        html.vc-light .apreview .adot{filter:invert(1) hue-rotate(180deg)}
+        html.vc-light .previewBox *{filter:none}
+        html.vc-light ::selection{background:#8B7CFF55}
         .col-scroll{overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none}
         .col-scroll::-webkit-scrollbar{display:none}
         .hbar-noscroll::-webkit-scrollbar{display:none}
@@ -8191,7 +8311,12 @@ function SvgMotionStudio() {
   }, React.createElement(Icon, {
     name: "redo",
     size: 16
-  }))), React.createElement("span", {
+  })), React.createElement("button", {
+    className: "btn",
+    style: S.iconBtn,
+    onClick: () => setLightMode(v => !v),
+    title: lightMode ? "ダークモードに切替" : "ライトモードに切替"
+  }, lightMode ? "🌙" : "☀")), React.createElement("span", {
     style: {
       position: "relative"
     }
@@ -8910,7 +9035,30 @@ function SvgMotionStudio() {
     style: {
       color: "#8B7CFF"
     }
-  }, "\u4F7F\u3044\u65B9\u30AC\u30A4\u30C9\u3092\u898B\u308B \u2192"), React.createElement("div", {
+  }, "\u4F7F\u3044\u65B9\u30AC\u30A4\u30C9\u3092\u898B\u308B \u2192"), hasAutosave && React.createElement("div", {
+    style: {
+      marginTop: 18
+    }
+  }, React.createElement("button", {
+    className: "btn",
+    onClick: restoreAutosave,
+    style: {
+      background: "linear-gradient(100deg,#2B2350,#1D2129)",
+      border: "1.5px solid #8B7CFF",
+      borderRadius: 10,
+      padding: "11px 22px",
+      cursor: "pointer",
+      color: "#EDEEF2",
+      fontWeight: 700,
+      fontSize: 13.5
+    }
+  }, "\u524D\u56DE\u306E\u4F5C\u696D\u3092\u5FA9\u5143\u3059\u308B"), React.createElement("div", {
+    style: {
+      fontSize: 10.5,
+      color: "#5C6373",
+      marginTop: 6
+    }
+  }, "\u4F5C\u696D\u5185\u5BB9\u306F\u3053\u306E\u30D6\u30E9\u30A6\u30B6\u306B\u81EA\u52D5\u4FDD\u5B58\u3055\u308C\u3066\u3044\u307E\u3059")), React.createElement("div", {
     style: {
       marginTop: 22
     }
@@ -11146,7 +11294,42 @@ function SvgMotionStudio() {
     box: videoEdit.box,
     onApply: applyVideoEdit,
     onClose: () => setVideoEdit(null)
-  }), toast && React.createElement("div", {
+  }), mobileNotice && React.createElement("div", {
+    className: "vc-toast",
+    style: {
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 90,
+      background: "#2B2350",
+      borderBottom: "1px solid #8B7CFF66",
+      color: "#EDEEF2",
+      padding: "10px 14px",
+      fontSize: 12.5,
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      lineHeight: 1.5
+    }
+  }, React.createElement("span", {
+    style: {
+      flex: 1
+    }
+  }, "Vectimo\u306F\u7DE8\u96C6\u64CD\u4F5C\u304C\u591A\u3044\u305F\u3081\u3001", React.createElement("b", null, "\u30D1\u30BD\u30B3\u30F3\u3067\u306E\u3054\u5229\u7528\u3092\u304A\u3059\u3059\u3081\u3057\u307E\u3059"), "\u3002\u30B9\u30DE\u30DB\u3067\u306F\u95B2\u89A7\u30FB\u7C21\u5358\u306A\u78BA\u8A8D\u5411\u3051\u3067\u3059\u3002"), React.createElement("button", {
+    className: "btn",
+    onClick: () => setMobileNotice(false),
+    style: {
+      background: "none",
+      border: "1px solid #8B7CFF88",
+      borderRadius: 6,
+      color: "#EDEEF2",
+      padding: "4px 10px",
+      cursor: "pointer",
+      fontSize: 12,
+      flexShrink: 0
+    }
+  }, "\u9589\u3058\u308B")), toast && React.createElement("div", {
     className: "vc-toast",
     style: {
       position: "fixed",
