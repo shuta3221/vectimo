@@ -2951,7 +2951,14 @@ const ShapeIcon = ({
     }), React.createElement("polygon", {
       points: "8,15 13,15 9,20",
       fill: c
-    }))
+    })),
+    text: React.createElement("path", {
+      d: "M5 5h14M12 5v14M8 19h8",
+      fill: "none",
+      stroke: c,
+      strokeWidth: "2.4",
+      strokeLinecap: "round"
+    })
   };
   return React.createElement("svg", {
     width: size,
@@ -4655,6 +4662,8 @@ function shapeInnerSvg(shape, color, geom) {
           bh = s * 1.3;
         return `<rect x="${f(cx - bw / 2)}" y="${f(cy - bh / 2)}" width="${f(bw)}" height="${f(bh)}" rx="${f(u * 0.05)}" fill="${color}"/>` + `<polygon points="${f(cx - s * 0.2)},${f(cy + bh / 2 - 2)} ${f(cx + s * 0.3)},${f(cy + bh / 2 - 2)} ${f(cx)},${f(cy + bh / 2 + s * 0.5)}" fill="${color}"/>`;
       }
+    case "text":
+      return `<text x="${f(cx)}" y="${f(cy)}" text-anchor="middle" dominant-baseline="middle" font-family="'Noto Sans JP','Hiragino Sans','Yu Gothic',sans-serif" font-weight="bold" font-size="${f(u * 0.09)}" fill="${color}">テキスト</text>`;
     default:
       return `<rect x="${f(cx - s)}" y="${f(cy - s)}" width="${f(s * 2)}" height="${f(s * 2)}" fill="${color}"/>`;
   }
@@ -7345,8 +7354,8 @@ function SvgMotionStudio() {
       ...scene.settings,
       [newUid]: {
         ...defaultSetting(),
-        type: "pop",
-        duration: 0.6,
+        type: shape === "text" ? "fadeIn" : "pop",
+        duration: shape === "text" ? 0.8 : 0.6,
         delay: 0
       }
     };
@@ -9197,7 +9206,7 @@ function SvgMotionStudio() {
   }, React.createElement(Icon, {
     name: "add",
     size: 13
-  }), "\u56F3\u5F62\u30FB\u5E2F\u3092\u8FFD\u52A0"), React.createElement("span", {
+  }), "\u56F3\u5F62\u30FB\u30C6\u30AD\u30B9\u30C8\u3092\u8FFD\u52A0"), React.createElement("span", {
     style: {
       fontSize: 11,
       color: "#9AA0AE",
@@ -9245,7 +9254,7 @@ function SvgMotionStudio() {
       gridTemplateColumns: "repeat(4,1fr)",
       gap: 6
     }
-  }, [["rect", "四角"], ["roundRect", "角丸"], ["circle", "丸"], ["band", "帯"], ["triangle", "三角"], ["star", "星"], ["arrow", "矢印"], ["bubble", "吹き出し"]].map(([k, label]) => React.createElement("button", {
+  }, [["text", "文字"], ["rect", "四角"], ["roundRect", "角丸"], ["circle", "丸"], ["band", "帯"], ["triangle", "三角"], ["star", "星"], ["arrow", "矢印"], ["bubble", "吹き出し"]].map(([k, label]) => React.createElement("button", {
     key: k,
     className: "btn",
     style: {
