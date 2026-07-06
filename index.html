@@ -11303,7 +11303,44 @@ function SvgMotionStudio() {
     box: videoEdit.box,
     onApply: applyVideoEdit,
     onClose: () => setVideoEdit(null)
-  }), mobileNotice && React.createElement("div", {
+  }), React.createElement("footer", {
+    style: {
+      flexShrink: 0,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 18,
+      padding: "5px 12px",
+      borderTop: "1px solid #262B38",
+      background: "#14161C",
+      fontSize: 10.5,
+      color: "#5C6373"
+    }
+  }, React.createElement("span", null, "\xA9 Vectimo"), React.createElement("a", {
+    href: "vectimo-guide.html",
+    target: "_blank",
+    rel: "noopener",
+    style: {
+      color: "#9AA0AE",
+      textDecoration: "none"
+    }
+  }, "\u4F7F\u3044\u65B9\u30AC\u30A4\u30C9"), React.createElement("a", {
+    href: "vectimo-terms.html",
+    target: "_blank",
+    rel: "noopener",
+    style: {
+      color: "#9AA0AE",
+      textDecoration: "none"
+    }
+  }, "\u5229\u7528\u898F\u7D04"), React.createElement("a", {
+    href: "vectimo-privacy.html",
+    target: "_blank",
+    rel: "noopener",
+    style: {
+      color: "#9AA0AE",
+      textDecoration: "none"
+    }
+  }, "\u30D7\u30E9\u30A4\u30D0\u30B7\u30FC\u30DD\u30EA\u30B7\u30FC")), mobileNotice && React.createElement("div", {
     className: "vc-toast",
     style: {
       position: "fixed",
@@ -11673,7 +11710,7 @@ const styles = {
     display: "grid",
     placeItems: "center",
     padding: SP.lg,
-    height: "clamp(280px, calc(100vh - 470px), 1100px)",
+    height: "clamp(280px, calc(100vh - 497px), 1100px)",
     background: "radial-gradient(ellipse at center, #1A1E28 0%, #14161C 75%)"
   },
   previewInner: {
