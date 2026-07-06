@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vectimo（ベクティモ）使い方ガイド</title>
+<meta name="description" content="SVGをつなげてテロップ・BGM付きのMP4動画をブラウザだけで作るVectimoの使い方ガイド。操作手順・機能リファレンス・FAQ。">
+<meta property="og:title" content="Vectimo 使い方ガイド">
+<meta property="og:description" content="SVGからアニメーションMP4を作るVectimoの操作手順・機能リファレンス・FAQ。">
+<meta property="og:type" content="article">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Crect%20width='100'%20height='100'%20rx='20'%20fill='%2314161C'/%3E%3Cdefs%3E%3ClinearGradient%20id='g'%20x1='0'%20y1='0'%20x2='1'%20y2='0'%3E%3Cstop%20offset='0'%20stop-color='%23FFFFFF'/%3E%3Cstop%20offset='1'%20stop-color='%238B5CF6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath%20d='M12%2024%20H28%20L42%2066%20L53%2046%20L62%2058%20L77%2024%20H90%20V90%20H79%20V48%20L64%2078%20L53%2063%20L44%2086%20H35%20Z'%20fill='url(%23g)'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#14161C; --panel:#171A22; --panel2:#1D2129; --line:#262B38; --line2:#333A4A;
+    --tx:#EDEEF2; --tx2:#C9CDD6; --mut:#9AA0AE; --mut2:#5C6373;
+    --pur:#8B7CFF; --pur2:#B9A5FF; --teal:#5FD6C4; --pink:#E86CB8; --amber:#F2B84B;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--tx);
+    font-family:'Zen Kaku Gothic New','Hiragino Sans','Yu Gothic',sans-serif;line-height:1.85;font-size:15px}
+  a{color:var(--pur2);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{font-family:'DM Mono','Courier New',monospace;background:var(--panel2);
+    border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:.88em;color:var(--teal)}
+  kbd{font-family:'DM Mono',monospace;background:#0e1016;border:1px solid var(--line2);
+    border-bottom-width:2px;border-radius:5px;padding:1px 7px;font-size:.85em;color:var(--tx2)}
+
+  /* ===== layout ===== */
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px;display:grid;grid-template-columns:216px 1fr;gap:40px}
+  @media(max-width:860px){.wrap{grid-template-columns:1fr;gap:0}.toc{display:none}}
+  header.hero{border-bottom:1px solid var(--line);background:
+    radial-gradient(60% 120% at 20% 0%, #1E2130 0%, var(--bg) 70%)}
+  .hero-inner{max-width:1180px;margin:0 auto;padding:44px 24px 40px}
+  .logo{display:flex;align-items:center;gap:12px}
+  .logo svg{width:40px;height:40px;display:block}
+  .logo b{font-family:'DM Mono',monospace;font-size:28px;font-weight:700;letter-spacing:.02em;
+    background:linear-gradient(95deg,#fff 20%,var(--pur2) 85%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .logo span{font-size:12px;color:var(--mut2);letter-spacing:.1em;align-self:flex-end;margin-bottom:6px}
+  .hero h1{font-size:30px;margin:22px 0 8px;line-height:1.4}
+  .hero p{color:var(--mut);max-width:680px;margin:0}
+  .badge{display:inline-block;font-size:11.5px;color:var(--teal);border:1px solid #2E5B54;
+    border-radius:20px;padding:3px 12px;margin-top:16px;font-family:'DM Mono',monospace}
+
+  /* ===== toc ===== */
+  .toc{position:sticky;top:24px;align-self:start;height:max-content;padding:20px 0}
+  .toc h4{font-size:11px;color:var(--mut2);letter-spacing:.08em;margin:0 0 10px;font-weight:700}
+  .toc a{display:block;color:var(--mut);font-size:13.5px;padding:5px 12px;border-left:2px solid transparent;line-height:1.5}
+  .toc a:hover{color:var(--tx);border-left-color:var(--line2);text-decoration:none}
+  .toc a.sub{padding-left:24px;font-size:12.5px;color:var(--mut2)}
+  .toc .grp{margin-bottom:14px}
+
+  main{padding:36px 0 90px;min-width:0}
+  section{margin-bottom:52px;scroll-margin-top:20px}
+  h2{font-size:22px;margin:0 0 4px;padding-bottom:12px;display:flex;align-items:center;gap:10px}
+  h2 .n{font-family:'DM Mono',monospace;font-size:14px;color:var(--pur);
+    border:1px solid var(--line2);border-radius:7px;padding:2px 9px;flex-shrink:0}
+  h3{font-size:16.5px;margin:30px 0 8px;color:var(--tx)}
+  .lead{color:var(--mut);margin:2px 0 20px}
+  p{margin:10px 0}
+  ul,ol{padding-left:22px}
+  li{margin:7px 0}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 24px;margin:16px 0}
+  .card.tealtint{border-color:#264b46;background:linear-gradient(180deg,#16211f,#14161C)}
+  .card.amber{border-color:#4a3d1f;background:linear-gradient(180deg,#211d14,#14161C)}
+  .card h3{margin-top:0}
+
+  /* steps */
+  .step{display:flex;gap:16px;padding:16px 0;border-bottom:1px dashed var(--line)}
+  .step:last-child{border-bottom:none}
+  .step .num{flex-shrink:0;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
+    font-family:'DM Mono',monospace;font-weight:700;color:#14161C;
+    background:linear-gradient(135deg,var(--pur),var(--pink))}
+  .step .body{flex:1;min-width:0}
+  .step .body h4{margin:4px 0 4px;font-size:15.5px}
+  .step .body p{margin:4px 0;color:var(--mut);font-size:14px}
+
+  /* feature grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin:16px 0}
+  .feat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+  .feat .ic{font-size:20px}
+  .feat h4{margin:8px 0 4px;font-size:15px}
+  .feat p{margin:0;color:var(--mut);font-size:13.5px;line-height:1.7}
+
+  /* tag chips */
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0}
+  .chip{font-size:12.5px;background:var(--panel2);border:1px solid var(--line);border-radius:7px;
+    padding:4px 11px;color:var(--tx2)}
+  .chip.loop{border-color:#4a3d1f;color:var(--amber)}
+  .chip.txt{border-color:#2E5B54;color:var(--teal)}
+  .chip.img{border-color:#3b2a4d;color:var(--pur2)}
+
+  /* faq */
+  details{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:10px 0;overflow:hidden}
+  details[open]{border-color:var(--line2)}
+  summary{cursor:pointer;padding:15px 20px;font-weight:700;font-size:14.5px;list-style:none;
+    display:flex;justify-content:space-between;align-items:center;gap:12px}
+  summary::-webkit-details-marker{display:none}
+  summary::after{content:"＋";color:var(--pur);font-family:'DM Mono',monospace;flex-shrink:0}
+  details[open] summary::after{content:"－"}
+  details .ans{padding:0 20px 18px;color:var(--mut);font-size:14px}
+  details .ans p:first-child{margin-top:0}
+
+  .note{border-left:3px solid var(--pur);background:#1a1c26;border-radius:0 8px 8px 0;
+    padding:12px 18px;margin:16px 0;font-size:13.5px;color:var(--tx2)}
+  .note.warn{border-left-color:var(--amber);background:#211d14}
+  .note b{color:var(--tx)}
+
+  .btn-demo{display:inline-flex;align-items:center;gap:8px;font-weight:700;color:#fff;
+    background:linear-gradient(100deg,#7C6CF0,#9D6DF0 55%,#E86CB8 120%);
+    border:none;border-radius:9px;padding:7px 15px;font-size:13px}
+
+  footer{border-top:1px solid var(--line);padding:28px 24px;text-align:center;color:var(--mut2);font-size:12.5px}
+  .kv{display:grid;grid-template-columns:130px 1fr;gap:6px 16px;margin:14px 0;font-size:14px}
+  .kv dt{color:var(--mut);font-family:'DM Mono',monospace;font-size:12.5px}
+  .kv dd{margin:0;color:var(--tx2)}
+  hr.soft{border:none;border-top:1px solid var(--line);margin:34px 0}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <div class="logo">
+      <svg viewBox="0 0 100 100" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#8B5CF6"/></linearGradient></defs><path d="M8 20 H26 L42 68 L54 44 L64 58 L80 20 H94 V94 H82 V46 L66 78 L54 62 L44 88 H34 Z" fill="url(#lg)"/></svg>
+      <b>Vectimo</b><span>SVG MOTION STUDIO</span>
+    </div>
+    <h1>使い方ガイド</h1>
+    <p>Vectimo（ベクティモ）は、複数のSVGや写真をシーンとしてつなげ、テロップ・BGM・ナレーション付きのMP4動画を<b>ブラウザだけ</b>で作れるツールです。インストール不要、ファイルは手元のブラウザ内だけで処理されます。このページで基本操作から各機能の詳細までひと通り分かります。</p>
+    <div class="badge">最終更新：2026-07-05</div>
+    <p style="margin:10px 0 0"><a href="index.html" style="color:#8B7CFF;font-weight:700;text-decoration:none">← Vectimoを開く（アプリ本体）</a></p>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- ===== TOC ===== -->
+  <nav class="toc">
+    <div class="grp">
+      <h4>はじめに</h4>
+      <a href="#about">Vectimoとは</a>
+      <a href="#screen">画面の構成</a>
+    </div>
+    <div class="grp">
+      <h4>操作手順</h4>
+      <a href="#quick">クイックスタート</a>
+      <a href="#steps">基本の流れ（7ステップ）</a>
+      <a href="#csv">CSVで文字を差し替え</a>
+      <a href="#bulk">画像・動画の一括割当</a>
+    </div>
+    <div class="grp">
+      <h4>リファレンス</h4>
+      <a href="#anim">アニメーション</a>
+      <a href="#preset">プリセット</a>
+      <a href="#telop">テロップ</a>
+      <a href="#audio">音声・BGM</a>
+      <a href="#trans">シーン切替</a>
+      <a href="#timeline">タイムライン</a>
+      <a href="#export">書き出し</a>
+      <a href="#shortcut">ショートカット</a>
+    </div>
+    <div class="grp">
+      <h4>その他</h4>
+      <a href="#faq">つまずき & FAQ</a>
+      <a href="#changelog">更新履歴</a>
+    </div>
+  </nav>
+
+  <!-- ===== MAIN ===== -->
+  <main>
+
+    <!-- about -->
+    <section id="about">
+      <h2><span class="n">01</span>Vectimoとは</h2>
+      <p class="lead">SVGを「紙芝居のシーン」として並べ、それぞれに動きをつけて1本の動画に書き出すツールです。</p>
+      <p>デザインツール（Illustrator・Figmaなど）で作ったSVGをそのまま読み込み、パーツごとにアニメーションを設定できます。写真（PNG・JPG）も1シーンとして読み込め、ズームやパンで動かして思い出のスライドショーづくりにも使えます。写真の差し替え、テロップ、BGMやナレーション、シーン間の切り替え効果まで、動画づくりに必要な要素がひと通りそろっています。Instagram Reelsのような縦型（9:16）から正方形・横型まで対応します。</p>
+      <div class="note"><b>データは外に出ません。</b> 読み込んだSVGや画像・音声はあなたのブラウザ内だけで処理され、どこかにアップロードされることはありません。</div>
+    </section>
+
+    <!-- screen -->
+    <section id="screen">
+      <h2><span class="n">02</span>画面の構成</h2>
+      <p class="lead">画面は大きく分けて「上部バー・左・中央・右・下段」の5つです。</p>
+      <div class="kv">
+        <dt>上部バー</dt><dd>元に戻す／やり直す、<b>☰ メニュー</b>（保存・読込・CSV・SVGコード編集などを集約）、<b>▶ 全再生</b>、<b>MP4書き出し</b>（紫→ピンクのボタン）。ボタンは線画アイコンで表示されます</dd>
+        <dt>音声バー</dt><dd>BGM の設定。ここに音声ファイルをドロップしてもBGMになります</dd>
+        <dt>シーンストリップ</dt><dd>読み込んだSVGがシーンとして横に並ぶ。ドラッグで並べ替え、SVGをドロップで追加</dd>
+        <dt>左カラム</dt><dd>選択中シーンの「パーツ一覧」「テロップ」「音声」</dd>
+        <dt>中央カラム</dt><dd>プレビュー。右上の <code>⤢</code> で拡大編集モーダルを開けます</dd>
+        <dt>右カラム</dt><dd>選択中パーツ／テロップ／音声の詳細設定</dd>
+        <dt>下段</dt><dd>タイムライン（バーのドラッグ・音声波形・ズーム）</dd>
+      </div>
+      <div class="note">各カラムは独立して上下スクロールします（スクロールバーは非表示）。縦長SVGで下が見えづらいときは、プレビュー右上の <code>⤢</code> で拡大編集モーダルを使うと作業しやすくなります。</div>
+    </section>
+
+    <!-- quick -->
+    <section id="quick">
+      <h2><span class="n">03</span>クイックスタート</h2>
+      <p class="lead">まず全体像。3分で1本作る最短ルートです。</p>
+      <div class="card">
+        <ol>
+          <li><b>素材を追加</b> — 「＋ 素材を追加」またはシーンストリップにドラッグ＆ドロップ（SVG・写真）</li>
+          <li><b>プリセットを適用</b> — 「全シーンに適用」で一括。まず雰囲気を決める</li>
+          <li><b>▶ 全再生</b> で通して確認</li>
+          <li><b>MP4書き出し</b> — 比率とfpsを選んで書き出し</li>
+        </ol>
+        <p style="margin-bottom:0;color:var(--mut)">細かい調整（テキスト差し替え・写真・テロップ・音）は次章以降で。</p>
+      </div>
+    </section>
+
+    <!-- steps -->
+    <section id="steps">
+      <h2><span class="n">04</span>基本の流れ（7ステップ）</h2>
+      <p class="lead">実際の制作でおすすめの順番です。</p>
+
+      <div class="card">
+        <div class="step"><div class="num">1</div><div class="body">
+          <h4>素材を読み込む（SVG・写真）</h4>
+          <p>「＋ 素材を追加」から複数選択、またはシーンストリップにドロップ。<b>SVGのほか写真（PNG・JPG・WebP）</b>も読み込めます。ファイル名順に並び、ドラッグで並べ替え、複製・削除も可能です。写真は読み込むと自動でゆっくりズーム（Ken Burns）が付き、それらしい動きになります。</p>
+        </div></div>
+        <div class="step"><div class="num">2</div><div class="body">
+          <h4>プリセットで動きの土台を作る</h4>
+          <p>中央下の選択メニューからプリセットを選び「全シーンに適用」。8種類の中から近いものを当てて、あとで個別調整するのが速いです。</p>
+        </div></div>
+        <div class="step"><div class="num">3</div><div class="body">
+          <h4>パーツごとにアニメを微調整</h4>
+          <p>左のパーツ一覧か、プレビューで直接クリックしてパーツを選択。右カラムでアニメの種類・時間・遅延・イージング・退場を設定します。写真パーツは「パーツ全体の動き」と「画像だけの動き（枠内でズーム等）」を別々に設定できます。</p>
+        </div></div>
+        <div class="step"><div class="num">4</div><div class="body">
+          <h4>テキスト・写真を差し替える</h4>
+          <p>テキストはパーツを選んで直接編集、または<a href="#csv">CSV入稿</a>でまとめて差し替え。写真は各パーツから差し替え、または<a href="#bulk">メディア一括割当</a>で全シーンぶんをまとめて指定します。</p>
+        </div></div>
+        <div class="step"><div class="num">5</div><div class="body">
+          <h4>テロップを乗せる</h4>
+          <p>左「テロップ」→「＋ テロップを追加」。プレビュー上でドラッグして位置決め（中央に寄せると<b>赤い中心ガイド</b>が出て吸着）。フォント・縁取り／帯・登場アニメを設定します。</p>
+        </div></div>
+        <div class="step"><div class="num">6</div><div class="body">
+          <h4>音を付けて“音ハメ”する</h4>
+          <p>BGMは動画全体に。ナレーションや効果音は左「音声」からシーンごとに（複数OK）。タイムラインに<b>波形</b>が出るので、ビートや声に合わせてテロップ・アニメのバーを合わせられます。</p>
+        </div></div>
+        <div class="step"><div class="num">7</div><div class="body">
+          <h4>全再生 → MP4書き出し</h4>
+          <p><b>▶ 全再生</b>で通し確認（再生中もシークバーで移動、<kbd>Esc</kbd>で閉じる）。問題なければ <b>MP4書き出し</b>。比率（元サイズ／1:1／9:16／16:9）とfps（24／30）を選んで書き出します。</p>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- csv -->
+    <section id="csv">
+      <h2><span class="n">05</span>CSVで文字をまとめて差し替え</h2>
+      <p class="lead">同じレイアウトで文字だけ違う動画を量産するときに便利です。</p>
+      <ol>
+        <li>SVGを読み込んだ状態で<b>☰ メニュー →「CSVテンプレを書き出し」</b>を選ぶと、そのプロジェクト専用のCSVがダウンロードされます（列：シーン番号／シーン名／パーツID／パーツ名／行／現在のテキスト／<b>新しいテキスト</b>）。</li>
+        <li>Excel等で<b>「新しいテキスト」列</b>に記入。変えない項目は空欄のままでOK（元のテキストが残ります）。</li>
+        <li><b>☰ メニュー →「CSVを取り込み」</b>でアップすると、記入した項目だけが一括反映されます。</li>
+      </ol>
+      <div class="note warn"><b>順番に注意。</b> テンプレはシーンの並び順を基準に紐付けます。「プロジェクト確定 → テンプレ書き出し → 記入 → 取り込み」の順で。テンプレ書き出し後にシーンを追加・削除・並べ替えすると対応がズレます。</div>
+      <div class="note">文字コードはExcelの「CSV UTF-8」でも通常の「CSV（Shift_JIS）」でも読めます。反映されないときは、記入して<b>上書き保存したファイル</b>をアップしているか確認してください（ダウンロードした空テンプレのままだと反映0件になります）。</div>
+    </section>
+
+    <!-- bulk -->
+    <section id="bulk">
+      <h2><span class="n">06</span>画像・動画の一括割当</h2>
+      <p class="lead">全シーンぶんの写真・動画を一度に読み込み、どのパーツに入れるか手で指定します。</p>
+      <ol>
+        <li>シーンストリップの<b>「メディア一括割当」</b>を開く。</li>
+        <li>画像・動画ファイルをドロップ（またはクリックで選択、複数可）。画像・動画以外はアラートでスキップされます。</li>
+        <li>各ファイルのプルダウンで割当先を選択。<b>「シーン2「N2_○○」／ photo_main」</b>のように、どのシーンのどのパーツかが分かる表記です。</li>
+        <li>「適用」で一括反映。画像は枠に合わせて中央トリミング、動画は各パーツの<code>尺・位置</code>ボタンで後から調整できます。</li>
+      </ol>
+      <div class="note">適用は <kbd>Ctrl</kbd>+<kbd>Z</kbd> で一括で戻せます。</div>
+    </section>
+
+    <!-- anim -->
+    <section id="anim">
+      <h2><span class="n">07</span>アニメーション（全28種）</h2>
+      <p class="lead">パーツごとに設定します。写真は「画像だけの動き」も別に指定可能。</p>
+      <h3>登場・単発</h3>
+      <div class="chips">
+        <span class="chip">フェードイン</span><span class="chip">スライド（上下左右）</span><span class="chip">ズームイン</span>
+        <span class="chip">ポップ（弾む）</span><span class="chip">回転イン</span><span class="chip">線描画</span>
+        <span class="chip">スタンプ</span>
+      </div>
+      <h3>強調・ループ<span style="font-weight:400;font-size:12px;color:var(--mut2)">（ずっと繰り返す動き）</span></h3>
+      <div class="chips">
+        <span class="chip loop">ふわふわ</span><span class="chip loop">脈打つ</span><span class="chip loop">回転し続ける</span>
+        <span class="chip loop">シェイク</span><span class="chip loop">点滅</span><span class="chip loop">ハートビート</span>
+      </div>
+      <h3>写真向き（パン・ズーム）</h3>
+      <div class="chips">
+        <span class="chip img">パン（上下左右に流す）</span><span class="chip img">徐々にズームアップ／アウト</span>
+        <span class="chip img">Ken Burns風（パン＋ズーム）</span>
+      </div>
+      <h3>テキスト向き</h3>
+      <div class="chips">
+        <span class="chip txt">1文字ずつ表示（タイプ）</span><span class="chip txt">1文字ずつふわっと</span>
+        <span class="chip txt">マーカーが引かれる</span><span class="chip txt">数字カウントアップ</span>
+      </div>
+      <h3>軌道（パスに沿って動く）</h3>
+      <div class="chips">
+        <span class="chip">弧を描いて着地</span><span class="chip">山なりに着地</span>
+        <span class="chip">波打ちながら</span><span class="chip">ジグザグ</span>
+        <span class="chip">跳ねながら</span><span class="chip">円を一周</span><span class="chip">らせん</span>
+      </div>
+      <p>要素が決まった軌道を辿って動きます。「弧を描いて着地」「跳ねながら」などは最後に正しい位置へ収まるので登場演出に、「円を一周」「らせん」はアクセントに向きます。動く幅は「距離」の値で調整できます。</p>
+      <div class="note">各アニメには<b>時間・開始遅延・イージング（6種）</b>を設定できます。さらに<b>退場アニメ</b>（フェードアウト、スライドアウト等）をつけると、シーン終了に合わせて自動で消えます。</div>
+      <h3>動きの使い回し（コピー・カスタムプリセット）</h3>
+      <p>作り込んだ動きは再利用できます。パーツを選択すると、右パネルのパーツ設定内に次のボタンが並びます。</p>
+      <ul>
+        <li><b>動きをコピー</b> → 別パーツを選んで <b>貼り付け</b>：その場で複製。</li>
+        <li><b>保存</b>：名前を付けてカスタムプリセットとして保存。右パネルに一覧で並び、他パーツや別シーンにワンクリックで適用できます（×で削除）。プロジェクト保存（JSON）にも含まれます。</li>
+      </ul>
+      <p>コピーされるのは「動きの性質」（種類・時間・遅延・イージング・退場など）だけで、位置やレイヤー順は移らないので、レイアウトの違うパーツ同士でも安全に使えます。</p>
+      <h3>動きをホバーで確認</h3>
+      <p>右パネルの「動きの種類」プルダウンの下に<b>プレビュー用のマス</b>が並びます。マウスを乗せると小さな四角がその動きで動いて見え、クリックで適用できます。名前だけでは分かりにくい動きも、見て選べます。</p>
+      <h3>図形・帯・アイコンを足す</h3>
+      <p>左カラムの<b>「図形・帯を追加」</b>（クリックで開閉するメニュー）から、四角・角丸・丸・帯（座布団）・三角・星・矢印・吹き出しを、いま選んでいるシーンにパーツとして追加できます。色を選んでからボタンを押すと中央に追加され、以降は<b>通常のパーツと同じ</b>——ドラッグ移動・サイズ変更・アニメ設定・レイヤー順・色変更——がすべて使えます。追加した図形を選ぶと、右パネルで<b>図形の種類をあとから変更</b>（丸→四角など）でき、色や位置は保たれます。塗りは<b>単色のほかグラデーション</b>（2色＋角度）も選べます。テキストの下に帯を敷く、キャッチに星や矢印を添える、といった装飾に便利です。</p>
+    </section>
+
+    <!-- preset -->
+    <section id="preset">
+      <h2><span class="n">08</span>プリセット（8種）</h2>
+      <p class="lead">全パーツにまとめて“らしい動き”を当てる出発点。適用後に個別調整できます。</p>
+      <div class="grid">
+        <div class="feat"><div class="ic">📄</div><h4>紙面風</h4><p>写真はゆっくりズーム、テキストは順番にスライドイン。雑誌の誌面のような落ち着いた構成。</p></div>
+        <div class="feat"><div class="ic">🎈</div><h4>ポップ</h4><p>要素が弾んで登場。明るくにぎやかな告知向き。</p></div>
+        <div class="feat"><div class="ic">🎬</div><h4>シネマ</h4><p>ゆったりフェードで登場し、退場も添える。上質・情緒的な見せ方。</p></div>
+        <div class="feat"><div class="ic">▫️</div><h4>ミニマル</h4><p>さっとフェードするだけの最小構成。情報を主役にしたいとき。</p></div>
+        <div class="feat"><div class="ic">⚡</div><h4>ダイナミック</h4><p>写真はズームイン、テキストは左右交互にスライド。テンポの速い広告向き。</p></div>
+        <div class="feat"><div class="ic">⌨️</div><h4>タイプ演出</h4><p>テキストを1文字ずつ、写真はKen Burns。ストーリー性のある紹介に。</p></div>
+        <div class="feat"><div class="ic">🔴</div><h4>ハンコ・ポップ</h4><p>テキストがスタンプでドンと。セール・新店告知に。</p></div>
+        <div class="feat"><div class="ic">🎞️</div><h4>スライドショー</h4><p>カットが流れて入れ替わる。写真が多い構成向き。</p></div>
+      </div>
+    </section>
+
+    <!-- telop -->
+    <section id="telop">
+      <h2><span class="n">09</span>テロップ</h2>
+      <p class="lead">シーンに後乗せする字幕・キャッチコピー。</p>
+      <ul>
+        <li><b>位置決め</b>：プレビュー上をドラッグ。中心に近づくと赤い中心ガイドが出て吸着します（数値入力も可）。</li>
+        <li><b>フォント（6種）</b>：ゴシック／明朝／丸ゴシック／手書き風／極太インパクト／等幅。書き出しでも崩れないフォント構成です。</li>
+        <li><b>スタイル</b>：縁取り文字／帯付き（座布団）。色も個別指定。</li>
+        <li><b>動き</b>：登場アニメ（フェード・スライド・ポップ等）とタイミング、シーン終了時の自動フェードアウト。</li>
+      </ul>
+      <div class="note">テロップは出力フレーム基準で配置されるので、比率を9:16⇔1:1と切り替えても画面内の相対位置が保たれます。タイムラインにもテロップ行として表示され、バーのドラッグで表示タイミングを調整できます。</div>
+    </section>
+
+    <!-- audio -->
+    <section id="audio">
+      <h2><span class="n">10</span>音声・BGM</h2>
+      <p class="lead">BGMは動画全体に1本、ナレーション等はシーンごとに複数。</p>
+      <h3>BGM（動画全体）</h3>
+      <p>音声バーの「＋ BGMを選択」、または音声ファイルを音声バーにドロップ。音量・フェードイン／アウト・ループを設定できます。</p>
+      <h3>シーン音声（複数可）</h3>
+      <p>左カラムの「音声」セクションから追加（ここにドロップも可）。1シーンに何本でも重ねられます。選択すると右カラムで次を調整できます。</p>
+      <div class="kv">
+        <dt>音量</dt><dd>0〜100%</dd>
+        <dt>開始タイミング</dt><dd>シーン開始から何秒後に鳴らすか</dd>
+        <dt>再生速度</dt><dd>0.5〜2.0倍（スロー／早回し）</dd>
+        <dt>使用範囲</dt><dd>ファイルの何秒〜何秒を使うか（トリミング）</dd>
+      </div>
+      <div class="note tealtint" style="border-radius:12px;padding:16px 20px"><b>音ハメのコツ。</b> タイムラインに音声の波形が表示されます。波形の山（ビート）や声の位置を見ながら、テロップやパーツのバーをドラッグで合わせると、ジャストなタイミングで表示させられます。波形自体をドラッグすると開始タイミングを微調整できます。</div>
+      <div class="note warn"><b>音声ファイルはプロジェクトJSONに保存されません。</b> 動画と同様、読み込み後に再設定してください。</div>
+    </section>
+
+    <!-- trans -->
+    <section id="trans">
+      <h2><span class="n">11</span>シーン切替エフェクト（6種）</h2>
+      <p class="lead">前のシーンから次のシーンへの移り変わり方。各シーンに設定します。</p>
+      <div class="chips">
+        <span class="chip">カット（瞬間切替）</span><span class="chip">クロスフェード</span>
+        <span class="chip">スライド（右→左／左→右）</span><span class="chip">スライド（下→上／上→下）</span>
+        <span class="chip">ワイプ（左から）</span><span class="chip">ズームフェード</span>
+        <span class="chip">回転フェード</span><span class="chip">ぼかしフェード</span>
+        <span class="chip">グリッチ</span><span class="chip">モーフ（にじみ変形）</span>
+      </div>
+      <p>切替の長さ（秒数）も指定できます。全再生・MP4書き出しの両方に反映されます。</p>
+    </section>
+
+    <!-- timeline -->
+    <section id="timeline">
+      <h2><span class="n">12</span>タイムライン</h2>
+      <p class="lead">下段。パーツ・テロップ・音声の時間配置をまとめて見て、直接いじれます。</p>
+      <ul>
+        <li><b>バーをドラッグ</b>：左右で開始タイミング（delay）を変更。</li>
+        <li><b>バーの右端をドラッグ</b>：長さ（duration）を伸縮。</li>
+        <li><b>ミニサムネイル</b>：各パーツ行に見た目のサムネイルを表示。</li>
+        <li><b>音声波形</b>：BGM・シーン音声の波形を表示（音ハメ用）。</li>
+        <li><b>ズーム</b>：右上のスライダーで横幅を最大6倍に拡大。細かいタイミング調整がしやすくなります。</li>
+        <li><b>クリックでジャンプ</b>：タイムラインの好きな位置をクリックすると、その時点の静止状態をプレビュー表示。</li>
+      </ul>
+    </section>
+
+    <!-- export -->
+    <section id="export">
+      <h2><span class="n">13</span>書き出し・保存</h2>
+      <p class="lead">成果物の出力と、作業状態の保存。</p>
+      <div class="kv">
+        <dt>MP4書き出し</dt><dd>比率（元／1:1／9:16／16:9）とfps（24／30）を選択。音声トラック（BGM・シーン音声）も合成されます。</dd>
+        <dt>プロジェクト保存（軽量）</dt><dd>シーン構成・アニメ・テロップをJSONで保存。写真はSVGに埋め込まれるため復元されますが、後から差し替えた動画・音声の実体は含まれません（ファイルは小さい）。</dd>
+        <dt>素材ごと保存（1ファイル完結）</dt><dd>動画・音声も含めてすべてJSONに埋め込みます。別のPCや後日でも、この1ファイルだけで完全に復元できます（そのぶんファイルは大きくなります）。</dd>
+        <dt>開く</dt><dd>保存したJSONを読み込み。</dd>
+        <dt>SVG書き出し</dt><dd>選択中シーンをアニメーション付きSVGとして書き出し。</dd>
+      </div>
+      <div class="note warn"><b>MP4書き出しはChrome / Edge推奨。</b> 音声の合成にはブラウザのAAC対応が必要です。非対応環境では映像のみで出力されます。</div>
+    </section>
+
+    <!-- shortcut -->
+    <section id="shortcut">
+      <h2><span class="n">14</span>ショートカット</h2>
+      <div class="kv">
+        <dt>Ctrl+Z</dt><dd>元に戻す（Undo）</dd>
+        <dt>Ctrl+Shift+Z</dt><dd>やり直す（Redo）</dd>
+        <dt>Delete / Backspace</dt><dd>選択中のパーツを削除（テキスト編集中を除く）</dd>
+        <dt>Esc</dt><dd>全再生・拡大編集モーダルを閉じる</dd>
+        <dt>⤢</dt><dd>プレビュー右上：拡大編集モーダルを開く</dd>
+      </div>
+    </section>
+
+    <!-- faq -->
+    <section id="faq">
+      <h2><span class="n">15</span>つまずき & FAQ</h2>
+
+      <details><summary>プレビューでパーツをクリックしても選択できない</summary>
+        <div class="ans"><p>パーツの上を直接クリックしてください（背景の余白ではなく、図形や文字の上）。それでも反応しないときは、いったん別のパーツを選んでから戻すと復帰します。テロップや音声は左カラムの一覧からも選べます。</p></div>
+      </details>
+
+      <details><summary>縦長SVGでプレビューが小さくて作業しづらい</summary>
+        <div class="ans"><p>プレビュー右上の <code>⤢</code> ボタンで拡大編集モーダルを開いてください。画面いっぱいに表示され、その中でもクリック選択・ドラッグ移動・中心ガイドがそのまま使えます。<kbd>Esc</kbd>または✕で閉じます。</p></div>
+      </details>
+
+      <details><summary>CSVを取り込んでも「反映できる行がありません」と出る</summary>
+        <div class="ans"><p>多くの場合、記入して<b>上書き保存したファイル</b>ではなく、最初にダウンロードした空のテンプレをアップしています。Excelで保存し直したファイルを選んでください。また、テンプレ書き出し後にシーンを並べ替え・削除するとパーツIDが一致せず反映されません。</p></div>
+      </details>
+
+      <details><summary>Figma（フィグマ）で作ったSVGの写真が差し替えられない</summary>
+        <div class="ans"><p>対応済みです。Figmaは写真を「パターン塗りの図形」として書き出しますが、Vectimoはこれを画像として認識し、差し替え・アニメ設定ができます。差し替えると通常の画像要素に変換されるので、以後は動画差し替えや画像内アニメもすべて使えます。</p></div>
+      </details>
+
+      <details><summary>全再生で聞いた音とMP4書き出しの音が違う</summary>
+        <div class="ans"><p>再生速度を変えたときのピッチの扱いを、再生と書き出しでそろえてあります。もし気になる差が残る場合は、書き出しをChrome/Edgeで行っているか確認してください。</p></div>
+      </details>
+
+      <details><summary>BGMが指定より長く鳴り続ける</summary>
+        <div class="ans"><p>全再生が最後まで到達した時点でBGM・音声は停止します。途中で閉じたいときは <kbd>Esc</kbd> か「閉じる」で止まります。</p></div>
+      </details>
+
+      <details><summary>作ったプロジェクトを別の日／別のPCで続けたい</summary>
+        <div class="ans"><p><b>☰ メニュー</b>の「プロジェクトを保存」でJSONを保存し、次回「プロジェクトを開く」で読み込みます。ただし画像・動画・音声のファイル実体はJSONに含まれないため、読み込み後に再設定が必要です。素材ファイルは別途フォルダで保管しておくと安心です。</p></div>
+      </details>
+
+      <details><summary>アプリが真っ白／エラー表示が出た</summary>
+        <div class="ans"><p>最新のHTMLファイルを使っているか確認し、ブラウザを再読み込みしてください。改善しない場合は、直前に行った操作と表示されたエラー文言を控えておくと原因特定が早くなります。</p></div>
+      </details>
+    </section>
+
+    <!-- changelog -->
+    <section id="changelog">
+      <h2><span class="n">16</span>更新履歴</h2>
+      <p class="lead">機能を追加したら、このセクションに追記していきます。</p>
+      <div class="card">
+        <h3 style="margin-top:0">2026-07-05</h3>
+        <ul>
+          <li><b>軌道（パス）アニメーション</b>を追加：弧・山なり・波・ジグザグ・跳ね・円・らせんの7種</li>
+          <li>図形の塗りに<b>グラデーション</b>（2色＋角度）を選べるように</li>
+          <li>追加した図形の<b>種類をあとから変更</b>できるように（丸→四角など、色・位置は保持）</li>
+          <li>図形追加パネルを<b>開閉式メニュー</b>にして省スペース化</li>
+          <li>パーツ選択中に <kbd>Delete</kbd>／<kbd>Backspace</kbd> で<b>パーツを削除</b>できるように</li>
+          <li>追加した図形も<b>クリックで選択を切り替え</b>できるように</li>
+          <li>パーツの<b>透過率（不透明度）</b>を設定できるように</li>
+          <li>シーン切替に<b>スライド（左→右・上→下）・ワイプ・回転・ぼかし・グリッチ</b>を追加（全10種類に）</li>
+          <li>左カラムに<b>図形・帯・アイコンの追加</b>（四角・丸・帯・三角・星・矢印・吹き出し）。追加後はパーツとしてアニメ・移動・色変更が可能</li>
+          <li>動きの種類を<b>ホバーで確認</b>できるプレビューマスを追加</li>
+          <li>MP4書き出しの<b>進捗表示を充実</b>（フェーズ・経過／残り時間・フレーム数）</li>
+          <li>音声・動画も含めて保存できる<b>「素材ごと保存（1ファイル完結）」</b>を追加</li>
+          <li>上部バーを整理：ファイル操作を<b>「☰ メニュー」</b>に集約し、主要ボタンを<b>線画アイコン</b>に統一</li>
+          <li>角丸・余白を<b>デザイントークンで統一</b>し、ボタン・入力・カード・モーダルに<b>マイクロインタラクション</b>（滑らかな動き）を追加</li>
+          <li>選択中のパーツを、左一覧・タイムライン・プレビューで<b>まとめて強調表示</b></li>
+          <li>動きのコピー・カスタムプリセットの操作を<b>右パネルのボタン／一覧に集約</b>（パーツの右クリックは廃止）</li>
+          <li>操作の発見性向上：初回<b>操作ヒント</b>と、パーツ選択時の常設ヒントを追加（☰メニューから再表示可）</li>
+          <li>シーンをたくさん並べても<b>横スクロールバーを非表示</b>に</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">2026-07-04</h3>
+        <ul style="margin-bottom:0">
+          <li><b>動きのコピー／貼り付け・カスタムプリセット保存</b>を追加。凝った動きを他パーツや別シーンで再利用でき、プロジェクトJSONにも保存されます</li>
+          <li><b>写真（PNG/JPG/WebP）をシーンとして読み込み</b>可能に。スライドショー用途に対応</li>
+          <li>選択パーツを <b>Ctrl＋ホイール／ピンチ／±ボタン</b>で拡大縮小</li>
+          <li>プレビュー右上に<b>拡大編集モーダル（⤢）</b>を追加</li>
+          <li><b>全再生</b>にシークバー（再生中の移動）と<kbd>Esc</kbd>閉じを追加</li>
+          <li>パーツ移動時の<b>中心スナップガイド</b>を追加</li>
+          <li>シーン音声を<b>複数対応＋使用範囲トリミング</b>に、パーツ一覧から選択・調整できるよう変更</li>
+          <li>SVG・音声・メディアの<b>ドラッグ＆ドロップ</b>対応（非対応ファイルはアラート）</li>
+          <li><b>Figmaのパターン塗り画像</b>の認識・差し替えに対応</li>
+          <li>タイムラインに<b>波形・ミニサムネイル・ズーム・ドラッグ操作</b>を追加</li>
+          <li>テロップの<b>フォント選択（6種）</b>、シーン切替に<b>モーフ</b>を追加</li>
+          <li>サービス名を <b>Vectimo</b> にリブランド</li>
+        </ul>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  Vectimo（ベクティモ） — SVG Motion Studio ／ このガイドは機能追加に合わせて更新されます。
+</footer>
+
+</body>
+</html>
