@@ -10999,7 +10999,7 @@ function SvgMotionStudio() {
       lineHeight: 1.5,
       backdropFilter: "blur(4px)"
     }
-  }, "\u30C9\u30E9\u30C3\u30B0\u3067\u79FB\u52D5 \u30FB Ctrl+\u30DB\u30A4\u30FC\u30EB\u3067\u62E1\u5927\u7E2E\u5C0F \u30FB \u53F3\u30AF\u30EA\u30C3\u30AF\u3067\u52D5\u304D\u3092\u30B3\u30D4\u30FC"), !pvModal && previewBoxEl), React.createElement("div", {
+  }, "\u30C9\u30E9\u30C3\u30B0\u3067\u79FB\u52D5 \u30FB Ctrl+\u30DB\u30A4\u30FC\u30EB\uFF0F\u30D4\u30F3\u30C1\u3067\u62E1\u5927\u7E2E\u5C0F"), !pvModal && previewBoxEl), React.createElement("div", {
     style: S.controls
   }, React.createElement("button", {
     className: "btn",
@@ -11124,6 +11124,21 @@ function SvgMotionStudio() {
     style: {
       overflow: "auto",
       maxHeight: 240
+    },
+    onWheel: e => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const el = e.currentTarget;
+      const rect = el.getBoundingClientRect();
+      const mx = e.clientX - rect.left + el.scrollLeft;
+      const ratio = mx / (el.scrollWidth || 1);
+      setTlZoom(z => {
+        const nz = Math.min(6, Math.max(1, +(z * (e.deltaY < 0 ? 1.15 : 1 / 1.15)).toFixed(2)));
+        requestAnimationFrame(() => {
+          el.scrollLeft = ratio * el.scrollWidth - (e.clientX - rect.left);
+        });
+        return nz;
+      });
     }
   }, React.createElement("div", {
     style: {
