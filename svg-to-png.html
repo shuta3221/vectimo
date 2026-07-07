@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SVGをPNGに無料変換（ブラウザ完結・アップロードなし）| Vectimo</title>
+<meta name="description" content="SVGファイルをPNG画像に変換する無料ツール。サーバーへのアップロード不要でブラウザ内で完結。サイズ（倍率）指定と背景の透過・白・カスタム色に対応しています。">
+<link rel="canonical" href="https://vectimo.vercel.app/svg-to-png.html">
+<meta property="og:title" content="SVGをPNGに無料変換 | Vectimo">
+<meta property="og:description" content="ブラウザ完結・アップロードなしでSVGをPNGに変換。サイズ指定・背景透過に対応。">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://vectimo.vercel.app/svg-to-png.html">
+<meta property="og:image" content="https://vectimo.vercel.app/vectimo-ogp.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%2314161C'/%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='0'%3E%3Cstop offset='0' stop-color='%23FFFFFF'/%3E%3Cstop offset='1' stop-color='%238B5CF6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M12 24 H28 L42 66 L53 46 L62 58 L77 24 H90 V90 H79 V48 L64 78 L53 63 L44 86 H35 Z' fill='url(%23g)'/%3E%3C/svg%3E">
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"SVG→PNG変換（Vectimo）","url":"https://vectimo.vercel.app/svg-to-png.html","description":"SVGファイルをPNG画像にブラウザ内で変換する無料ツール。アップロード不要。","applicationCategory":"UtilitiesApplication","operatingSystem":"Web","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"}}
+</script>
+<style>
+:root{--bg:#14161C;--panel:#1D2129;--line:#333A4A;--tx:#EDEEF2;--sub:#9AA0AE;--mut:#5C6373;--pu:#8B7CFF;--te:#5FD6C4}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:'Zen Kaku Gothic New','Hiragino Sans','Yu Gothic',sans-serif;line-height:1.8}
+a{color:var(--pu)}
+.wrap{max-width:920px;margin:0 auto;padding:0 22px}
+header{position:sticky;top:0;z-index:10;background:#14161CEE;backdrop-filter:blur(8px);border-bottom:1px solid #262B38}
+.nav{display:flex;align-items:center;gap:18px;padding:14px 0}
+.logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;color:var(--tx);text-decoration:none}
+.nav .links{margin-left:auto;display:flex;gap:18px;align-items:center;font-size:13.5px}
+.nav .links a{color:var(--sub);text-decoration:none}
+.btn{display:inline-block;background:linear-gradient(100deg,#6A46F5,#7C5CFF);color:#fff !important;font-weight:800;text-decoration:none;border-radius:12px;padding:12px 26px;font-size:14.5px;border:none;cursor:pointer;box-shadow:0 4px 18px #6A46F566}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.ghost{background:var(--panel);color:var(--tx) !important;border:1px solid var(--line);box-shadow:none}
+h1{font-size:clamp(22px,4vw,32px);text-align:center;margin:44px 0 8px}
+.lead{text-align:center;color:var(--sub);font-size:14px;margin:0 0 30px}
+.drop{border:2px dashed var(--line);border-radius:16px;background:var(--panel);padding:44px 20px;text-align:center;cursor:pointer;transition:border-color .15s}
+.drop.on{border-color:var(--pu)}
+.opts{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin:20px 0;align-items:center}
+.opts label{font-size:13px;color:var(--sub);display:flex;align-items:center;gap:8px}
+select,input[type=number]{background:var(--panel);color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-family:inherit;width:auto}
+input[type=number]{width:90px}
+.panes{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}
+@media(max-width:640px){.panes{grid-template-columns:1fr}}
+.pane{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;text-align:center}
+.pane h3{margin:0 0 10px;font-size:13.5px;color:var(--sub);font-weight:700}
+.pane .cv{background:repeating-conic-gradient(#20242E 0% 25%, #181B22 0% 50%) 0 0/20px 20px;border-radius:8px;min-height:200px;display:grid;place-items:center;overflow:hidden}
+.pane .cv img,.pane .cv svg,.pane .cv canvas{max-width:100%;max-height:340px;height:auto}
+.meta{font-size:11.5px;color:var(--mut);margin-top:8px}
+.actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin:24px 0 10px}
+.note{background:#181C26;border:1px solid var(--line);border-radius:12px;padding:14px 18px;font-size:13px;color:var(--sub);margin:26px 0}
+footer{padding:26px 0 34px;text-align:center;font-size:12px;color:var(--mut);border-top:1px solid #262B38;margin-top:40px}
+footer a{color:var(--sub);text-decoration:none;margin:0 10px}
+</style>
+</head>
+<body>
+<header><div class="wrap nav">
+  <a class="logo" href="./"><svg width="26" height="26" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="#14161C"/><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FFF"/><stop offset="1" stop-color="#8B5CF6"/></linearGradient></defs><path d="M12 24 H28 L42 66 L53 46 L62 58 L77 24 H90 V90 H79 V48 L64 78 L53 63 L44 86 H35 Z" fill="url(#lg)"/></svg>Vectimo</a>
+  <div class="links"><a href="png-to-svg.html">PNG→SVG</a><a class="btn" style="padding:8px 18px;font-size:13px;border-radius:9px" href="app.html">動画をつくる</a></div>
+</div></header>
+
+<div class="wrap">
+  <h1>SVG を PNG に変換</h1>
+  <p class="lead">ブラウザ内で完結。ファイルはどこにもアップロードされません。<br>サイズ（倍率）指定と、背景の透過・白・カスタム色に対応しています。</p>
+
+  <div class="drop" id="drop">
+    <div style="font-size:15px;font-weight:700;margin-bottom:6px">クリックしてSVGファイルを選択、またはドラッグ＆ドロップ</div>
+    <div style="font-size:12px;color:var(--mut)">.svg ・ ロゴ／アイコン／イラストなど</div>
+    <input type="file" id="file" accept=".svg,image/svg+xml" style="display:none">
+  </div>
+
+  <div class="opts">
+    <label>サイズ
+      <select id="scale">
+        <option value="1">等倍（元のサイズ）</option>
+        <option value="2" selected>2倍</option>
+        <option value="3">3倍</option>
+        <option value="4">4倍</option>
+        <option value="w">幅を指定 →</option>
+      </select>
+    </label>
+    <label id="wLabel" style="display:none">幅(px) <input type="number" id="wPx" value="1080" min="16" max="8000"></label>
+    <label>背景
+      <select id="bg">
+        <option value="transparent" selected>透過（そのまま）</option>
+        <option value="#FFFFFF">白</option>
+        <option value="#000000">黒</option>
+        <option value="custom">カスタム →</option>
+      </select>
+    </label>
+    <input type="color" id="bgColor" value="#F4F1EC" style="display:none;width:36px;height:30px;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:2px;cursor:pointer">
+    <button class="btn" id="run" disabled>PNGに変換する</button>
+  </div>
+
+  <div class="panes" id="panes" style="display:none">
+    <div class="pane"><h3>元のSVG</h3><div class="cv" id="src"></div><div class="meta" id="srcMeta"></div></div>
+    <div class="pane"><h3>変換後のPNG</h3><div class="cv" id="dst"></div><div class="meta" id="dstMeta"></div></div>
+  </div>
+
+  <div class="actions" id="actions" style="display:none">
+    <button class="btn" id="dl">PNGをダウンロード</button>
+    <a class="btn ghost" href="/blog/how-to-convert-svg-to-png.html">変換方法の解説記事を読む</a>
+  </div>
+
+  <div class="note">
+    <b>ヒント</b><br>
+    ・SVGはベクター形式なので、<b>大きめの倍率で書き出しても画質が劣化しません</b>。印刷用途なら3〜4倍がおすすめです。<br>
+    ・背景が透過のPNGは、資料やデザインへの貼り付けに便利です。<br>
+    ・逆方向（PNG→SVG）の変換は<a href="png-to-svg.html">こちらのツール</a>で。SVGを動かして動画にするなら<a href="app.html">Vectimo</a>をどうぞ。
+  </div>
+</div>
+
+<footer><div class="wrap">
+  <div><a href="./">トップ</a><a href="app.html">アプリを開く</a><a href="blog/">ブログ</a><a href="png-to-svg.html">PNG→SVG変換</a><a href="svg-to-png.html">SVG→PNG変換</a><a href="vectimo-guide.html">使い方ガイド</a><a href="vectimo-terms.html">利用規約</a><a href="vectimo-privacy.html">プライバシーポリシー</a></div>
+  <div style="margin-top:10px">© Vectimo</div>
+</div></footer>
+
+<script>
+(function(){
+  var svgText=null, name="image", pngBlob=null, natW=0, natH=0;
+  var drop=document.getElementById("drop"), file=document.getElementById("file"), run=document.getElementById("run");
+  document.getElementById("scale").addEventListener("change",function(){document.getElementById("wLabel").style.display=this.value==="w"?"":"none";});
+  document.getElementById("bg").addEventListener("change",function(){document.getElementById("bgColor").style.display=this.value==="custom"?"":"none";});
+  drop.addEventListener("click",function(){file.click()});
+  drop.addEventListener("dragover",function(e){e.preventDefault();drop.classList.add("on")});
+  drop.addEventListener("dragleave",function(){drop.classList.remove("on")});
+  drop.addEventListener("drop",function(e){e.preventDefault();drop.classList.remove("on");if(e.dataTransfer.files[0])load(e.dataTransfer.files[0])});
+  file.addEventListener("change",function(){if(file.files[0])load(file.files[0])});
+
+  function parseSize(t){
+    var m=t.match(/viewBox\s*=\s*["']\s*[-\d.]+[\s,]+[-\d.]+[\s,]+([\d.]+)[\s,]+([\d.]+)/i);
+    var w=0,h=0;
+    var mw=t.match(/<svg[^>]*\bwidth\s*=\s*["']?([\d.]+)/i), mh=t.match(/<svg[^>]*\bheight\s*=\s*["']?([\d.]+)/i);
+    if(mw&&mh){w=+mw[1];h=+mh[1];}
+    else if(m){w=+m[1];h=+m[2];}
+    return {w:w||300,h:h||150};
+  }
+  function load(f){
+    name=f.name.replace(/\.svg$/i,"");
+    var r=new FileReader();
+    r.onload=function(){
+      svgText=String(r.result);
+      var s=parseSize(svgText); natW=s.w; natH=s.h;
+      var box=document.getElementById("src");box.innerHTML=svgText;
+      var sv=box.querySelector("svg");
+      if(sv){ if(!sv.getAttribute("width")){sv.setAttribute("width",natW);sv.setAttribute("height",natH);} sv.style.maxWidth="100%";sv.style.height="auto"; }
+      document.getElementById("srcMeta").textContent=natW+"×"+natH+" ・ "+(f.size/1024).toFixed(0)+"KB";
+      document.getElementById("panes").style.display="grid";
+      document.getElementById("dst").innerHTML="";document.getElementById("dstMeta").textContent="";
+      document.getElementById("actions").style.display="none";
+      run.disabled=false;
+    };
+    r.readAsText(f);
+  }
+  run.addEventListener("click",function(){
+    if(!svgText)return;
+    run.disabled=true;
+    // width/heightを確実に持たせたSVGをBlob化してImageに読み込む
+    var t=svgText;
+    if(!/<svg[^>]*\bwidth\s*=/.test(t)){ t=t.replace(/<svg/, '<svg width="'+natW+'" height="'+natH+'"'); }
+    var url=URL.createObjectURL(new Blob([t],{type:"image/svg+xml"}));
+    var img=new Image();
+    img.onload=function(){
+      try{
+        var sel=document.getElementById("scale").value;
+        var scale= sel==="w" ? (+document.getElementById("wPx").value||1080)/natW : +sel;
+        var W=Math.max(1,Math.round(natW*scale)), H=Math.max(1,Math.round(natH*scale));
+        if(W>8000||H>8000){alert("出力サイズが大きすぎます（最大8000px）。倍率を下げてください。");run.disabled=false;return;}
+        var c=document.createElement("canvas");c.width=W;c.height=H;
+        var ctx=c.getContext("2d");
+        var bgSel=document.getElementById("bg").value;
+        var bgCol= bgSel==="custom" ? document.getElementById("bgColor").value : bgSel;
+        if(bgCol!=="transparent"){ctx.fillStyle=bgCol;ctx.fillRect(0,0,W,H);}
+        ctx.drawImage(img,0,0,W,H);
+        c.toBlob(function(b){
+          pngBlob=b;
+          var dst=document.getElementById("dst");dst.innerHTML="";
+          var out=new Image();out.src=URL.createObjectURL(b);dst.appendChild(out);
+          document.getElementById("dstMeta").textContent=W+"×"+H+" ・ "+(b.size/1024).toFixed(0)+"KB ・ "+(bgCol==="transparent"?"背景透過":"背景あり");
+          document.getElementById("actions").style.display="flex";
+          run.disabled=false;
+        },"image/png");
+      }catch(e){alert("変換に失敗しました: "+e.message);run.disabled=false;}
+      URL.revokeObjectURL(url);
+    };
+    img.onerror=function(){alert("SVGの読み込みに失敗しました。ファイルが壊れていないかご確認ください。");run.disabled=false;};
+    img.src=url;
+  });
+  document.getElementById("dl").addEventListener("click",function(){
+    if(!pngBlob)return;
+    var a=document.createElement("a");a.href=URL.createObjectURL(pngBlob);a.download=name+".png";a.click();
+  });
+})();
+</script>
+</body>
+</html>
