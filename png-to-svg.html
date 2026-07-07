@@ -71,14 +71,14 @@ footer a{color:var(--sub);text-decoration:none;margin:0 10px}
   <div class="opts">
     <label>仕上がり
       <select id="preset">
-        <option value="simple">シンプル（色数少なめ）</option>
-        <option value="standard" selected>標準</option>
+        <option value="simple" selected>ロゴ・アイコン（おすすめ）</option>
+        <option value="standard">標準</option>
         <option value="detail">精細（色数多め）</option>
       </select>
     </label>
     <label>色数
       <select id="colors">
-        <option>4</option><option>8</option><option selected>12</option><option>16</option><option>24</option><option>32</option>
+        <option>4</option><option selected>6</option><option>8</option><option>12</option><option>16</option><option>24</option><option>32</option>
       </select>
     </label>
     <button class="btn" id="run" disabled>SVGに変換する</button>
@@ -99,7 +99,7 @@ footer a{color:var(--sub);text-decoration:none;margin:0 10px}
     <b>うまく変換するコツ</b><br>
     ・ロゴ・アイコン・イラスト・文字画像など、<b>色数が少なくフチがはっきりした画像</b>に向いています。写真は色数が膨大なため、油絵のような仕上がりになりファイルも大きくなります。<br>
     ・変換後のSVGは色ごとのパーツに分かれるので、Vectimoに読み込むと<b>パーツ単位でアニメーション</b>を付けられます。<br>
-    ・大きな画像は自動的に縮小して変換します（最大1200px）。
+    ・小さな画像は内部で2倍に拡大してからトレースし、輪郭を滑らかにしています（処理サイズ最大1600px）。
   </div>
 </div>
 
@@ -1337,7 +1337,7 @@ if(typeof define === 'function' && define.amd){
   drop.addEventListener("drop",function(e){e.preventDefault();drop.classList.remove("on");if(e.dataTransfer.files[0])load(e.dataTransfer.files[0])});
   file.addEventListener("change",function(){if(file.files[0])load(file.files[0])});
   document.getElementById("preset").addEventListener("change",function(){
-    var m={simple:"8",standard:"12",detail:"24"};document.getElementById("colors").value=m[this.value];
+    var m={simple:"6",standard:"12",detail:"24"};document.getElementById("colors").value=m[this.value];
   });
   function load(f){
     name=f.name.replace(/\.[^.]+$/,"");
@@ -1362,13 +1362,15 @@ if(typeof define === 'function' && define.amd){
     document.getElementById("spin").style.display="block";run.disabled=true;
     setTimeout(function(){
       try{
-        var max=1200, w=img.naturalWidth, h=img.naturalHeight;
-        if(Math.max(w,h)>max){var r=max/Math.max(w,h);w=Math.round(w*r);h=Math.round(h*r);}
+        // 品質のコツ：2倍に拡大してからトレース＋軽いぼかしで、輪郭のギザギザを大幅に低減
+        var max=1600, w0=img.naturalWidth, h0=img.naturalHeight;
+        var scale=Math.min(2, max/Math.max(w0,h0));
+        var w=Math.round(w0*scale), h=Math.round(h0*scale);
         var c=document.createElement("canvas");c.width=w;c.height=h;
-        var ctx=c.getContext("2d");ctx.drawImage(img,0,0,w,h);
+        var ctx=c.getContext("2d");ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";ctx.drawImage(img,0,0,w,h);
         var data=ctx.getImageData(0,0,w,h);
         var preset=document.getElementById("preset").value;
-        var opt={numberofcolors:+document.getElementById("colors").value, pathomit:preset==="detail"?4:(preset==="simple"?14:8), ltres:preset==="detail"?0.5:1, qtres:preset==="detail"?0.5:1, strokewidth:0, blurradius:0, roundcoords:1, viewbox:true};
+        var opt={numberofcolors:+document.getElementById("colors").value, pathomit:preset==="detail"?3:(preset==="simple"?14:8), ltres:0.1, qtres:0.1, rightangleenhance:true, strokewidth:0, blurradius:1, roundcoords:2, viewbox:true};
         svgStr=ImageTracer.imagedataToSVG(data,opt);
         // 連続する同色パスを<g>にまとめる（Vectimoで色ごとのパーツとして扱えるように＆パーツ数の爆発を防止）
         try{
