@@ -7152,6 +7152,28 @@ function SvgMotionStudio() {
   const wheelBoundRef = useRef(new WeakSet());
   const [pvZoom, setPvZoom] = useState("fit");
   const [tlZoom, setTlZoom] = useState(1);
+  const tlScrollRef = useRef(null);
+  useEffect(() => {
+    const el = tlScrollRef.current;
+    if (!el) return;
+    const onWheel = e => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const ratio = (e.clientX - rect.left + el.scrollLeft) / (el.scrollWidth || 1);
+      setTlZoom(z => {
+        const nz = Math.min(6, Math.max(1, +(z * (e.deltaY < 0 ? 1.15 : 1 / 1.15)).toFixed(2)));
+        requestAnimationFrame(() => {
+          el.scrollLeft = ratio * el.scrollWidth - (e.clientX - rect.left);
+        });
+        return nz;
+      });
+    };
+    el.addEventListener("wheel", onWheel, {
+      passive: false
+    });
+    return () => el.removeEventListener("wheel", onWheel);
+  });
   const [bulkOpen, setBulkOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const csvRef = useRef(null);
@@ -11121,24 +11143,10 @@ function SvgMotionStudio() {
     }
   }))), React.createElement("div", {
     className: "pv-scroll",
+    ref: tlScrollRef,
     style: {
       overflow: "auto",
       maxHeight: 240
-    },
-    onWheel: e => {
-      if (!e.ctrlKey && !e.metaKey) return;
-      e.preventDefault();
-      const el = e.currentTarget;
-      const rect = el.getBoundingClientRect();
-      const mx = e.clientX - rect.left + el.scrollLeft;
-      const ratio = mx / (el.scrollWidth || 1);
-      setTlZoom(z => {
-        const nz = Math.min(6, Math.max(1, +(z * (e.deltaY < 0 ? 1.15 : 1 / 1.15)).toFixed(2)));
-        requestAnimationFrame(() => {
-          el.scrollLeft = ratio * el.scrollWidth - (e.clientX - rect.left);
-        });
-        return nz;
-      });
     }
   }, React.createElement("div", {
     style: {
@@ -11501,6 +11509,14 @@ function SvgMotionStudio() {
       textDecoration: "none"
     }
   }, "\u30C8\u30C3\u30D7"), React.createElement("a", {
+    href: "blog/",
+    target: "_blank",
+    rel: "noopener",
+    style: {
+      color: "#9AA0AE",
+      textDecoration: "none"
+    }
+  }, "\u30D6\u30ED\u30B0"), React.createElement("a", {
     href: "vectimo-guide.html",
     target: "_blank",
     rel: "noopener",

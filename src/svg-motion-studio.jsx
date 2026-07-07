@@ -427,9 +427,15 @@ const newSceneId = () => `sc_${++sceneSeq}_${Date.now()}`;
 
 // ---------- SVG parsing ----------
 function getPartsChildren(root) {
-  let children = Array.from(root.children).filter((el) => !["defs", "style", "title", "desc", "metadata"].includes(el.tagName));
-  if (children.length === 1 && children[0].tagName === "g") {
-    children = Array.from(children[0].children).filter((el) => !["defs", "style", "title", "desc"].includes(el.tagName));
+  const skip = (el) => ["defs", "style", "title", "desc", "metadata"].includes(el.tagName);
+  let children = Array.from(root.children).filter((el) => !skip(el));
+  // 単一の<g>ラッパーが何重にも入れ子のSVG（Figmaのclip包み等）は、中身が出てくるまで降りる（最大4段）
+  let depth = 0;
+  while (children.length === 1 && children[0].tagName === "g" && depth < 4) {
+    const inner = Array.from(children[0].children).filter((el) => !skip(el));
+    if (!inner.length) break;
+    children = inner;
+    depth++;
   }
   return children;
 }
@@ -1516,6 +1522,18 @@ function readImageFile(file) {
     };
     r.readAsDataURL(file);
   });
+}
+
+// width/height属性が無いSVG（PNG→SVG変換出力など）にviewBox由来の寸法を付与（HTML内で高さ0に潰れるのを防ぐ）
+function ensureSvgSize(svgText) {
+  const m = svgText.match(/<svg[^>]*>/);
+  if (!m) return svgText;
+  const tag = m[0];
+  if (/\bwidth\s*=/.test(tag) && /\bheight\s*=/.test(tag)) return svgText;
+  const vb = tag.match(/viewBox\s*=\s*["']\s*[-\d.]+[\s,]+[-\d.]+[\s,]+([\d.]+)[\s,]+([\d.]+)\s*["']/i);
+  if (!vb) return svgText;
+  const newTag = tag.replace(/<svg/, `<svg width="${vb[1]}" height="${vb[2]}"`);
+  return svgText.replace(tag, newTag);
 }
 
 // パーツ（トップレベル子要素）を削除。settings側の除去・uid振り直しは呼び出し側で行う。
@@ -2648,6 +2666,26 @@ export default function SvgMotionStudio() {
   const wheelBoundRef = useRef(new WeakSet());
   const [pvZoom, setPvZoom] = useState("fit"); // 'fit' | 0.5 | 1 | 2
   const [tlZoom, setTlZoom] = useState(1); // タイムライン拡大率 1〜6
+  const tlScrollRef = useRef(null);
+  // Ctrl+ホイール／トラックパッドのピンチでタイムラインをズーム。
+  // Reactのwheelはpassive登録でpreventDefaultが効かない（＝ページ全体がズームしてしまう）ため、非passiveのネイティブリスナーで登録する。
+  useEffect(() => {
+    const el = tlScrollRef.current;
+    if (!el) return;
+    const onWheel = (e) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const ratio = (e.clientX - rect.left + el.scrollLeft) / (el.scrollWidth || 1);
+      setTlZoom((z) => {
+        const nz = Math.min(6, Math.max(1, +(z * (e.deltaY < 0 ? 1.15 : 1 / 1.15)).toFixed(2)));
+        requestAnimationFrame(() => { el.scrollLeft = ratio * el.scrollWidth - (e.clientX - rect.left); });
+        return nz;
+      });
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  });
   const [bulkOpen, setBulkOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const csvRef = useRef(null);
@@ -2743,6 +2781,21 @@ export default function SvgMotionStudio() {
     showToast("パーツを削除しました（Ctrl+Zで戻せます）");
   };
   deletePartRef.current = deletePart;
+
+  // --- PNG→SVG変換ページからの受け取り（localStorage経由のワンクリック連携） ---
+  useEffect(() => {
+    try {
+      const raw = window.localStorage?.getItem("vectimo_import");
+      if (!raw) return;
+      window.localStorage.removeItem("vectimo_import");
+      const text = ensureSvgSize(autoGroupManyParts(raw));
+      const settings = initSettings(text);
+      const sc = { id: newSceneId(), name: "変換したSVG", svgText: text, settings, duration: Math.max(3, +(animEnd(settings) + 1.5).toFixed(1)), transition: { type: "fade", duration: 0.6 } };
+      setScenesH((prev) => [...prev, sc]);
+      setActiveId(sc.id);
+      showToast("✔ 変換したSVGを読み込みました。パーツごとに動きを付けられます");
+    } catch (e) { /* 取り込み失敗時は静かにスキップ */ }
+  }, []);
 
   // --- タブ/ウィンドウを閉じる前の確認（作業中のみ） ---
   useEffect(() => {
@@ -3082,6 +3135,57 @@ export default function SvgMotionStudio() {
   }, [playing, playKey, seekT, activeId]);
 
   // ---------- シーン操作 ----------
+  // パーツが極端に多いSVG（PNG→SVG変換由来など）を、連続する同色ごとに<g>へ自動グループ化してフリーズを防ぐ
+  const autoGroupManyParts = (svgText) => {
+    // 高速パス：<svg>直下が自己終了<path>の羅列（PNG→SVG変換の出力形）なら文字列処理で一瞬でグループ化
+    try {
+      const m = svgText.match(/^\s*(<svg[^>]*>)([\s\S]*?)(<\/svg>)\s*$/);
+      if (m) {
+        const inner = m[2];
+        const paths = inner.match(/<path\b[^>]*\/>/g);
+        if (paths && paths.length > 100 && paths.join("").length >= inner.replace(/\s+/g, "").length * 0.95) {
+          let out = "", curFill = null, groups = 0, open = false;
+          for (const p of paths) {
+            const f = (p.match(/fill="([^"]*)"/) || [, "__none__"])[1];
+            if (f !== curFill) {
+              if (open) out += "</g>";
+              out += `<g data-sid="grp${groups++}">`;
+              open = true; curFill = f;
+            }
+            out += p;
+          }
+          if (open) out += "</g>";
+          let head = m[1];
+          if (!/xmlns=/.test(head)) head = head.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"');
+          showToast(`パーツが非常に多いSVGのため、色ごとに自動グループ化しました（${paths.length}個 → ${groups}パーツ）`);
+          return head + out + m[3];
+        }
+      }
+    } catch (e) { /* フォールバックへ */ }
+    try {
+      const parsed = parseSvg(svgText);
+      if (parsed.error) return svgText;
+      const kids = Array.from(parsed.root.children).filter((el) => !["defs", "style", "title", "desc", "metadata"].includes(el.tagName));
+      if (kids.length <= 100) return svgText;
+      const doc = parsed.root.ownerDocument;
+      let curFill = null, curG = null, groups = 0;
+      for (const el of kids) {
+        const f = (el.getAttribute && el.getAttribute("fill")) || "__none__";
+        if (f !== curFill || !curG) {
+          curG = doc.createElementNS(SVGNS, "g");
+          curG.setAttribute("data-sid", `grp${groups++}`);
+          parsed.root.insertBefore(curG, el);
+          curFill = f;
+        }
+        curG.appendChild(el);
+      }
+      if (!parsed.root.getAttribute("xmlns")) parsed.root.setAttribute("xmlns", SVGNS);
+      const out = new XMLSerializer().serializeToString(parsed.root);
+      showToast(`パーツが非常に多いSVGのため、色ごとに自動グループ化しました（${kids.length}個 → ${groups}パーツ）`);
+      return out;
+    } catch (e) { return svgText; }
+  };
+
   const addScenesFromFiles = (files) => {
     const isSvg = (f) => f.name.toLowerCase().endsWith(".svg") || f.type === "image/svg+xml";
     const isImg = (f) => /^image\/(png|jpeg|jpg|webp|gif)$/.test(f.type) || /\.(png|jpe?g|webp|gif)$/i.test(f.name);
@@ -3093,7 +3197,7 @@ export default function SvgMotionStudio() {
     Promise.all(list.map((f) => new Promise((res) => {
       if (isSvg(f)) {
         const r = new FileReader();
-        r.onload = () => res({ name: f.name.replace(/\.svg$/i, ""), text: String(r.result), kind: "svg" });
+        r.onload = () => res({ name: f.name.replace(/\.svg$/i, ""), text: ensureSvgSize(autoGroupManyParts(String(r.result))), kind: "svg" });
         r.onerror = () => res(null);
         r.readAsText(f);
       } else {
@@ -3349,344 +3453,8 @@ export default function SvgMotionStudio() {
   }, [scenes, activeId]);
   const headT = seekT !== null ? seekT : liveT;
 
-  return (
-    <div style={S.app}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Noto+Sans+JP:wght@700&family=Noto+Serif+JP:wght@700&family=M+PLUS+Rounded+1c:wght@700&family=Klee+One:wght@600&display=swap');
-        *{box-sizing:border-box} ::selection{background:#8B7CFF55}
-        input,select,button,textarea{font-family:inherit}
-        input[type=range]{accent-color:#8B7CFF}
-        /* --- マイクロインタラクション：滑らかな状態遷移 --- */
-        .btn{transition:filter .15s ease, background-color .15s ease, border-color .15s ease, transform .1s ease, box-shadow .15s ease}
-        .btn:hover{filter:brightness(1.15)}
-        .btn:active{transform:translateY(1px) scale(0.98)}
-        .partRow{transition:background-color .15s ease, border-color .15s ease}
-        .partRow:hover{background:#262B38 !important}
-        .btn:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid #8B7CFF;outline-offset:2px}
-        select,input,textarea{transition:border-color .15s ease, box-shadow .15s ease}
-        select:hover,input:hover,textarea:hover{border-color:#4A5266}
-        input:focus,select:focus,textarea:focus{border-color:#8B7CFF;box-shadow:0 0 0 3px #8B7CFF22}
-        .sceneCard{transition:border-color .18s ease, transform .18s ease, box-shadow .18s ease}
-        .sceneCard:hover{border-color:#8B7CFF88 !important;transform:translateY(-2px);box-shadow:0 6px 20px #0006}
-        .sceneCard svg{width:100%;height:auto;display:block}
-        .ctxItem{display:block;width:100%;text-align:left;background:none;border:none;color:#EDEEF2;font-size:13px;padding:7px 10px;border-radius:6px;cursor:pointer;font-family:inherit;transition:background-color .12s ease}
-        .ctxItem:hover:not(:disabled){background:#2A2F40}
-        .ctxItem:disabled{cursor:default}
-        /* トースト・メニュー・モーダルの出入り */
-        @keyframes vcToastIn{from{opacity:0;transform:translate(-50%,12px)}to{opacity:1;transform:translate(-50%,0)}}
-        @keyframes vcMenuIn{from{opacity:0;transform:translateY(-6px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
-        @keyframes vcFadeIn{from{opacity:0}to{opacity:1}}
-        @keyframes vcModalIn{from{opacity:0;transform:scale(.97) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
-        .vc-toast{animation:vcToastIn .28s cubic-bezier(.2,.9,.3,1.2) both}
-        .vc-menu{animation:vcMenuIn .16s ease both;transform-origin:top}
-        .vc-overlay{animation:vcFadeIn .18s ease both}
-        .vc-modal{animation:vcModalIn .24s cubic-bezier(.2,.8,.3,1) both}
-        /* 選択パーツのハイライトを呼吸させる */
-        @keyframes vcSelPulse{0%,100%{opacity:.55}50%{opacity:1}}
-        /* アニメ・ホバープレビュー（小さな四角で動きを再現） */
-        .animChip{position:relative;overflow:hidden;cursor:pointer;user-select:none}
-        .animChip .apreview{position:absolute;inset:0;display:grid;place-items:center;background:#14161C;opacity:0;pointer-events:none;transition:opacity .12s}
-        .animChip:hover .apreview{opacity:1}
-        .animChip .adot{width:16px;height:12px;border-radius:2px;background:linear-gradient(135deg,#8B7CFF,#5FD6C4)}
-        .animChip:hover .adot{animation:var(--akf) 1.1s ease infinite}
-        @keyframes apFade{0%{opacity:0}50%,100%{opacity:1}}
-        @keyframes apSlideUp{0%{transform:translateY(10px);opacity:0}50%,100%{transform:translateY(0);opacity:1}}
-        @keyframes apSlideDown{0%{transform:translateY(-10px);opacity:0}50%,100%{transform:translateY(0);opacity:1}}
-        @keyframes apSlideLeft{0%{transform:translateX(12px);opacity:0}50%,100%{transform:translateX(0);opacity:1}}
-        @keyframes apSlideRight{0%{transform:translateX(-12px);opacity:0}50%,100%{transform:translateX(0);opacity:1}}
-        @keyframes apZoom{0%{transform:scale(.4);opacity:0}50%,100%{transform:scale(1);opacity:1}}
-        @keyframes apPop{0%{transform:scale(0)}60%{transform:scale(1.25)}80%{transform:scale(.92)}100%{transform:scale(1)}}
-        @keyframes apRotate{0%{transform:rotate(-180deg) scale(.5);opacity:0}60%,100%{transform:rotate(0) scale(1);opacity:1}}
-        @keyframes apFloat{0%,100%{transform:translateY(-3px)}50%{transform:translateY(3px)}}
-        @keyframes apPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.3)}}
-        @keyframes apSpin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
-        @keyframes apShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
-        @keyframes apBlink{0%,49%,100%{opacity:1}50%,99%{opacity:.15}}
-        @keyframes apHeart{0%,100%{transform:scale(1)}15%{transform:scale(1.3)}30%{transform:scale(1)}45%{transform:scale(1.2)}}
-        @keyframes apStamp{0%{transform:scale(2.2);opacity:0}55%{transform:scale(.9);opacity:1}70%{transform:scale(1.05)}100%{transform:scale(1)}}
-        @keyframes apPan{0%{transform:translateX(-6px) scale(1.2)}100%{transform:translateX(6px) scale(1.2)}}
-        @keyframes apPathArc{0%{transform:translate(-8px,0)}50%{transform:translate(-2px,-8px)}100%{transform:translate(0,0)}}
-        @media (prefers-reduced-motion: reduce){*{animation-duration:.001ms !important;transition-duration:.001ms !important}}
-        /* --- 簡易ライトモード：UIを反転し、実際の色が必要な要素だけ再反転 --- */
-        html.vc-light body{filter:invert(1) hue-rotate(180deg);background:#EAEAF0}
-        html.vc-light .previewBox, html.vc-light .previewBox *,
-        html.vc-light .sceneCard svg,
-        html.vc-light img, html.vc-light video,
-        html.vc-light input[type=color],
-        html.vc-light .vc-brand, html.vc-light .vc-truecolor,
-        html.vc-light .apreview .adot{filter:invert(1) hue-rotate(180deg)}
-        html.vc-light .previewBox *{filter:none}
-        html.vc-light ::selection{background:#8B7CFF55}
-        /* --- レスポンシブ（900px未満：3カラムを縦積みにして閲覧可能に） --- */
-        @media (max-width: 900px){
-          .vc-main{display:flex !important;flex-direction:column !important;overflow-y:auto !important}
-          .vc-main > *{width:100% !important;max-width:100% !important;border-left:none !important;border-right:none !important;border-bottom:1px solid #262B38}
-          .col-scroll{max-height:none !important;overflow:visible !important}
-          body, #root > div{height:auto !important;min-height:100vh;overflow:auto !important}
-          header{position:sticky;top:0;z-index:20;background:#14161C}
-        }
-        .col-scroll{overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none}
-        .col-scroll::-webkit-scrollbar{display:none}
-        .hbar-noscroll::-webkit-scrollbar{display:none}
-        .pv-scroll{overflow:auto;scrollbar-width:none;-ms-overflow-style:none}
-        .pv-scroll::-webkit-scrollbar{display:none}
-        .previewBox{display:grid;place-items:center}
-        .previewBox.pv-fit svg{width:auto;height:auto;max-width:100%;max-height:100%;display:block}
-        .pv-modal .previewBox{max-height:100%}
-        .pv-modal .previewBox svg{max-height:calc(100vh - 110px) !important;max-width:calc(100vw - 60px) !important}
-
-        .previewBox.pv-zoom svg{width:var(--pvw);height:auto;max-width:none;max-height:none;display:block}
-        @media (prefers-reduced-motion: reduce){ svg *{animation-duration:0.01s !important} }
-      `}</style>
-
-      {/* Header */}
-      <header style={S.header}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 9 }}>
-            <LogoMark size={26} />
-            <span style={S.logo}>Vectimo</span>
-            <span style={{ fontSize: 10.5, color: "#5C6373", letterSpacing: "0.06em", marginTop: 4 }}>SVG MOTION STUDIO</span>
-          </span>
-          <span style={S.sub}>複数SVG → 1本の動画</span>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <span style={{ display: "flex", gap: 2 }}>
-            <button className="btn" style={S.iconBtn} onClick={undo} title="元に戻す（Ctrl+Z）"><Icon name="undo" size={16} /></button>
-            <button className="btn" style={S.iconBtn} onClick={redo} title="やり直す（Ctrl+Shift+Z）"><Icon name="redo" size={16} /></button>
-            <button className="btn" style={S.iconBtn} onClick={() => setLightMode((v) => !v)} title={lightMode ? "ダークモードに切替" : "ライトモードに切替"}>{lightMode ? "🌙" : "☀"}</button>
-          </span>
-          <span style={{ position: "relative" }}>
-            <button className="btn" style={S.ghostBtn} onClick={() => setFileMenu((v) => !v)}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="menu" />メニュー ▾</span></button>
-            {fileMenu && (
-              <>
-                <div style={{ position: "fixed", inset: 0, zIndex: 30 }} onClick={() => setFileMenu(false)} />
-                <div className="vc-menu" style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 31, background: "#1D2129", border: "1px solid #333A4A", borderRadius: 10, padding: 6, minWidth: 200, boxShadow: "0 12px 40px #000A" }}>
-                  <div style={S.menuLabel}>プロジェクト</div>
-                  <button className="ctxItem" onClick={() => { saveProject(false); setFileMenu(false); }}><span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Icon name="save" />プロジェクトを保存（軽量）</span></button>
-                  <button className="ctxItem" onClick={() => { saveProject(true); setFileMenu(false); }}><span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Icon name="save" />素材ごと保存（1ファイル完結）</span></button>
-                  <button className="ctxItem" onClick={() => { projRef.current?.click(); setFileMenu(false); }}><span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Icon name="folder" />プロジェクトを開く</span></button>
-                  <div style={{ borderTop: "1px solid #262B38", margin: "5px 0" }} />
-                  <div style={S.menuLabel}>CSV入稿</div>
-                  <button className="ctxItem" onClick={() => { exportCsvTemplate(); setFileMenu(false); }}><span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Icon name="csvOut" />CSVテンプレを書き出し</span></button>
-                  <button className="ctxItem" onClick={() => { csvRef.current?.click(); setFileMenu(false); }}><span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Icon name="csvIn" />CSVを取り込み</span></button>
-                  <div style={{ borderTop: "1px solid #262B38", margin: "5px 0" }} />
-                  <div style={S.menuLabel}>この他</div>
-                  <button className="ctxItem" onClick={() => { setInputOpen((v) => !v); setFileMenu(false); }}><span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Icon name="code" />SVGコードを編集</span></button>
-                  <button className="ctxItem" onClick={() => { exportSvg(); setFileMenu(false); }}><span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Icon name="image" />このシーンをSVG書き出し</span></button>
-                  <button className="ctxItem" onClick={() => { setHintsDone(false); setFileMenu(false); }}><span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Icon name="lightbulb" size={14} />操作ヒントを再表示</span></button>
-                  <a className="ctxItem" href="vectimo-guide.html" target="_blank" rel="noopener" style={{ textDecoration: "none" }} onClick={() => setFileMenu(false)}><span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Icon name="folder" size={14} />使い方ガイドを開く</span></a>
-                </div>
-              </>
-            )}
-          </span>
-          <input ref={projRef} type="file" accept=".json" style={{ display: "none" }} onChange={loadProject} />
-          <input ref={csvRef} type="file" accept=".csv,text/csv" style={{ display: "none" }} onChange={importCsv} />
-          <button className="btn" style={S.primaryBtn} onClick={() => setSeqOpen(true)}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="play" />全再生（{totalVideo.toFixed(1)}s）</span></button>
-          <button className="btn" style={S.exportBtn} onClick={() => setMp4Open(true)}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="film" />MP4書き出し</span></button>
-        </div>
-      </header>
-
-      {/* フレーム設定 */}
-      <div style={S.frameBar}>
-        <span style={S.frameLabel}>出力サイズ</span>
-        {Object.entries(FRAMES).map(([k, v]) => (
-          <button key={k} className="btn" onClick={() => setFrame((f) => ({ ...f, ratio: k }))}
-            style={{ ...S.frameBtn, ...(frame.ratio === k ? S.frameBtnActive : {}) }}>{v.label}</button>
-        ))}
-        {frame.ratio !== "original" && (
-          <>
-            <span style={{ ...S.frameLabel, marginLeft: 10 }}>収め方</span>
-            <select style={S.transSelect} value={frame.fit} onChange={(e) => setFrame((f) => ({ ...f, fit: e.target.value }))}>
-              <option value="cover">切り抜き（カバー）</option>
-              <option value="contain">全体表示（余白）</option>
-            </select>
-            <select style={S.transSelect} value={frame.align} onChange={(e) => setFrame((f) => ({ ...f, align: e.target.value }))} title="位置">
-              {Object.entries(ALIGNS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
-            {frame.fit === "contain" && (
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "#9AA0AE" }}>
-                余白色
-                <input type="color" value={frame.bg} onChange={(e) => setFrame((f) => ({ ...f, bg: e.target.value }))}
-                  style={{ width: 26, height: 22, border: "1px solid #333A4A", borderRadius: 5, background: "#1D2129", padding: 1, cursor: "pointer" }} />
-              </label>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* 音声バー（BGMはここに音声ファイルをドロップでも設定可能） */}
-      <div style={S.frameBar}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => {
-          e.preventDefault();
-          const all = Array.from(e.dataTransfer.files || []);
-          const f = all.find((x) => x.type.startsWith("audio/"));
-          const bad = all.filter((x) => !x.type.startsWith("audio/"));
-          if (bad.length) window.alert(`音声ファイルではないためスキップしました：\n${bad.map((x) => x.name).join("\n")}`);
-          if (f) setBgm({ src: URL.createObjectURL(f), name: f.name, volume: 0.6, loop: true, fadeIn: 1, fadeOut: 1.5 });
-        }}>
-        <span style={S.frameLabel}><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name="music" size={13} />BGM（動画全体）</span></span>
-        {bgm ? (
-          <>
-            <span style={{ fontSize: 11.5, color: "#C9CDD6", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{bgm.name}</span>
-            <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#9AA0AE" }}>
-              音量<input type="range" min="0" max="1" step="0.05" value={bgm.volume} onChange={(e) => setBgm({ ...bgm, volume: +e.target.value })} style={{ width: 70 }} />
-            </label>
-            <label style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#9AA0AE" }}>
-              フェードイン<input type="number" min="0" max="10" step="0.5" value={bgm.fadeIn} onChange={(e) => setBgm({ ...bgm, fadeIn: Math.max(0, +e.target.value || 0) })} style={S.numInput} />s
-            </label>
-            <label style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#9AA0AE" }}>
-              アウト<input type="number" min="0" max="10" step="0.5" value={bgm.fadeOut} onChange={(e) => setBgm({ ...bgm, fadeOut: Math.max(0, +e.target.value || 0) })} style={S.numInput} />s
-            </label>
-            <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#9AA0AE", cursor: "pointer" }}>
-              <input type="checkbox" checked={bgm.loop !== false} onChange={(e) => setBgm({ ...bgm, loop: e.target.checked })} />ループ
-            </label>
-            <button className="btn" style={{ ...S.frameBtn, color: "#FF8FA3" }} onClick={() => setBgm(null)}><span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="x" size={12} />解除</span></button>
-          </>
-        ) : (
-          <button className="btn" style={S.frameBtn} onClick={() => bgmFileRef.current?.click()}>＋ BGMを選択</button>
-        )}
-        <input ref={bgmFileRef} type="file" accept="audio/*" style={{ display: "none" }} onChange={(e) => {
-          const f = e.target.files?.[0]; e.target.value = "";
-          if (f) setBgm({ src: URL.createObjectURL(f), name: f.name, volume: 0.6, loop: true, fadeIn: 1, fadeOut: 1.5 });
-        }} />
-
-        <span style={{ fontSize: 11.5, color: "#5C6373", marginLeft: 14 }}>シーン音声は左のパーツ一覧の下部から追加できます（複数可・このバーに音声をドロップするとBGMに設定）</span>
-        <input ref={audioFileRef} type="file" accept="audio/*" multiple style={{ display: "none" }} onChange={(e) => { addSceneAudios(e.target.files); e.target.value = ""; }} />
-      </div>
-
-      {/* シーンストリップ（SVGをドロップで追加） */}
-      <div className="hbar-noscroll" style={S.sceneStrip}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => {
-          e.preventDefault();
-          const all = Array.from(e.dataTransfer.files || []);
-          const ok = (f) => f.type === "image/svg+xml" || /\.(svg|png|jpe?g|webp|gif)$/i.test(f.name) || /^image\//.test(f.type);
-          const good = all.filter(ok);
-          if (good.length) addScenesFromFiles(good);
-          else if (all.length) window.alert(`対応していないファイルです：\n${all.map((f) => f.name).join("\n")}\n（SVG・PNG・JPG・WebPに対応）`);
-        }}>
-        {scenes.map((s, i) => {
-          const active = s.id === activeId;
-          const thumb = getSceneThumb(s.svgText);
-          return (
-            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <div className="sceneCard" onClick={() => setActiveId(s.id)}
-                draggable
-                onDragStart={(e) => { dragSceneRef.current = s.id; e.dataTransfer.effectAllowed = "move"; }}
-                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const fromId = dragSceneRef.current;
-                  if (!fromId || fromId === s.id) return;
-                  setScenesH((sc) => {
-                    const from = sc.findIndex((x) => x.id === fromId);
-                    const to = sc.findIndex((x) => x.id === s.id);
-                    if (from < 0 || to < 0) return sc;
-                    const next = [...sc];
-                    const [moved] = next.splice(from, 1);
-                    next.splice(to, 0, moved);
-                    return next;
-                  });
-                  dragSceneRef.current = null;
-                }}
-                style={{ ...S.sceneCard, borderColor: active ? "#8B7CFF" : "#333A4A", boxShadow: active ? "0 0 0 1px #8B7CFF" : "none" }}>
-                <div style={S.sceneThumb} dangerouslySetInnerHTML={{ __html: thumb }} />
-                <div style={S.sceneCardBody}>
-                  <div style={S.sceneName} title={s.name}>{i + 1}. {s.name}</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <input type="number" min="0.5" step="0.5" value={s.duration}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => updateScene(s.id, { duration: Math.max(0.3, +e.target.value || 0.3) })}
-                      style={S.durInput} aria-label="シーンの長さ（秒）" />
-                    <span style={{ fontSize: 10, color: "#9AA0AE" }}>秒</span>
-                  </div>
-                </div>
-                <div style={S.sceneOps} onClick={(e) => e.stopPropagation()}>
-                  <button className="btn" style={S.miniBtn} onClick={() => moveScene(s.id, -1)} title="左へ">◀</button>
-                  <button className="btn" style={S.miniBtn} onClick={() => moveScene(s.id, 1)} title="右へ">▶</button>
-                  <button className="btn" style={S.miniBtn} onClick={() => duplicateScene(s.id)} title="複製">⧉</button>
-                  <button className="btn" style={{ ...S.miniBtn, color: "#FF8FA3", display: "inline-flex", alignItems: "center" }} onClick={() => removeScene(s.id)} title="削除"><Icon name="x" size={12} /></button>
-                </div>
-              </div>
-              {i < scenes.length - 1 && (
-                <select
-                  value={s.transition.type}
-                  onChange={(e) => updateScene(s.id, { transition: { ...s.transition, type: e.target.value, duration: e.target.value === "cut" ? 0 : (s.transition.duration || 0.6) } })}
-                  style={S.transSelect} title="次のシーンへのトランジション">
-                  {Object.entries(TRANSITIONS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                </select>
-              )}
-            </div>
-          );
-        })}
-        <button className="btn" style={S.addSceneBtn} onClick={() => fileRef.current?.click()}>＋ 素材を追加<br /><span style={{ fontSize: 10, fontWeight: 400 }}>（SVG・画像／複数OK）</span></button>
-        <button className="btn" style={{ ...S.miniBtn, color: "#FF8FA3", fontSize: 12, padding: "8px 10px", flexShrink: 0, border: "1px solid #7A3B4A", borderRadius: 8 }}
-          onClick={() => {
-            if (!window.confirm(`全${scenes.length}シーンを削除します。よろしいですか？（Ctrl+Zで戻せます）`)) return;
-            setScenesH([]);
-            setActiveId(null);
-            setSelected(null);
-          }}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="trash" size={13} />全シーン削除</span></button>
-        <button className="btn" style={{ ...S.miniBtn, color: "#5FD6C4", fontSize: 12, padding: "8px 10px", flexShrink: 0, border: "1px solid #2E5B54", borderRadius: 8 }}
-          onClick={() => setBulkOpen(true)}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="layers" size={13} />メディア一括割当</span></button>
-
-        <input ref={fileRef} type="file" accept=".svg,image/svg+xml,image/png,image/jpeg,image/webp,image/gif" multiple style={{ display: "none" }} onChange={(e) => { addScenesFromFiles(e.target.files); e.target.value = ""; }} />
-      </div>
-
-      {/* SVGコード編集 */}
-      {inputOpen && scene && (
-        <div style={S.inputPanel}>
-          <textarea style={S.textarea} value={scene.svgText} spellCheck={false} aria-label="SVGコード"
-            onChange={(e) => {
-              const text = e.target.value;
-              const p = parseSvg(text);
-              const nextSettings = {};
-              if (p.parts) p.parts.forEach((pt, i) => { nextSettings[pt.uid] = scene.settings[pt.uid] || { ...defaultSetting(), delay: +(i * 0.25).toFixed(2) }; });
-              updateScene(scene.id, { svgText: text, settings: nextSettings });
-            }} />
-          <p style={S.hint}>編集中のシーン：{scene.name}。レイヤーにid名を付けるとパーツ名として表示されます。</p>
-        </div>
-      )}
-
-      {scenes.length === 0 ? (
-        <div style={{ flex: 1, display: "grid", placeItems: "center", padding: 40, textAlign: "center" }}>
-          <div>
-            <div style={{ marginBottom: 16, display: "flex", justifyContent: "center" }}><LogoMark size={52} /></div>
-            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>SVGを追加して始めましょう</div>
-            <p style={{ fontSize: 13, color: "#9AA0AE", lineHeight: 1.8, marginBottom: 20 }}>
-              「＋ 素材を追加」から <b>SVG・写真（PNG/JPG）</b> を1枚または複数読み込むと、<br />シーンとして並べてアニメーション動画を作れます。<br />写真はズームやパンで動かして、思い出のスライドショーにも。<br />保存したプロジェクト（JSON）は「☰ メニュー → プロジェクトを開く」から読み込めます。<br /><a href="vectimo-guide.html" target="_blank" rel="noopener" style={{ color: "#8B7CFF" }}>使い方ガイドを見る →</a>
-              {hasAutosave && (
-                <div style={{ marginTop: 18 }}>
-                  <button className="btn" onClick={restoreAutosave}
-                    style={{ background: "linear-gradient(100deg,#2B2350,#1D2129)", border: "1.5px solid #8B7CFF", borderRadius: 10, padding: "11px 22px", cursor: "pointer", color: "#EDEEF2", fontWeight: 700, fontSize: 13.5 }}>
-                    前回の作業を復元する
-                  </button>
-                  <div style={{ fontSize: 10.5, color: "#5C6373", marginTop: 6 }}>作業内容はこのブラウザに自動保存されています</div>
-                </div>
-              )}
-              <div style={{ marginTop: 22 }}>
-                <div style={{ fontSize: 12.5, color: "#9AA0AE", marginBottom: 10 }}>— または、テンプレートから始める —</div>
-                <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
-                  {TEMPLATES.map((t) => (
-                    <button key={t.id} className="btn" onClick={() => loadTemplate(t)}
-                      style={{ background: "#1D2129", border: "1px solid #333A4A", borderRadius: 10, padding: "12px 16px", cursor: "pointer", color: "#EDEEF2", textAlign: "left", width: 190 }}>
-                      <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 4 }}>{t.name}</div>
-                      <div style={{ fontSize: 11, color: "#9AA0AE", lineHeight: 1.5 }}>{t.desc}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </p>
-            <button className="btn" style={S.primaryBtn} onClick={() => fileRef.current?.click()}>＋ 素材を追加</button>
-          </div>
-        </div>
-      ) : parsed.error ? (
-        <div style={S.errorBox}>{parsed.error}</div>
-      ) : (
-        <div className="vc-main" style={S.main}>
-          {/* Parts list */}
-          <aside style={S.leftPanel}>
+  // 左パネル（パーツ一覧・図形/テロップ/音声）の中身。メイン画面と拡大編集モーダルで共有
+  const leftPanelContent = !scene ? null : (<>
             <div style={S.panelTitle}>パーツ（{parsed.parts.length}）<span style={{ fontWeight: 400, letterSpacing: 0 }}>　下ほど前面</span></div>
             <div className="col-scroll" style={{ flex: 1 }}>
               {parsed.parts.map((p, i) => {
@@ -3764,146 +3532,10 @@ export default function SvgMotionStudio() {
                   onClick={() => audioFileRef.current?.click()}>＋ 音声を追加（ここにドロップ可）</button>
               </div>
             </div>
-          </aside>
+  </>);
 
-          {/* Center */}
-          <section className="col-scroll" style={S.center}>
-            {!hintsDone && scene && (
-              <div className="vc-overlay" style={{ margin: "12px 16px 0", background: "linear-gradient(100deg,#1E1B33,#171A22)", border: "1px solid #3B3566", borderRadius: 12, padding: "12px 14px", display: "flex", alignItems: "flex-start", gap: 12 }}>
-                <span style={{ display: "inline-flex", color: "#B9A5FF" }}><Icon name="lightbulb" size={18} /></span>
-                <div style={{ flex: 1, fontSize: 12.5, color: "#C9CDD6", lineHeight: 1.85 }}>
-                  <b style={{ color: "#EDEEF2" }}>知っておくと便利な操作</b>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 16px", marginTop: 3 }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="mouse" size={12} />パーツを<b>ドラッグで移動</b></span>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="search" size={12} /><b>Ctrl＋ホイール</b>／ピンチで拡大縮小</span>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="copy" size={12} />パーツを選択して<b>右パネル</b>から動きのコピー・保存</span>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="settings" size={12} />タイムラインのバーは<b>ドラッグで移動・右端で伸縮</b></span>
-                    <span>⤢ プレビュー右上で<b>拡大編集</b></span>
-                  </div>
-                </div>
-                <button className="btn" style={{ ...S.ghostBtn, padding: "5px 10px", fontSize: 11.5, flexShrink: 0 }} onClick={() => setHintsDone(true)}>閉じる</button>
-              </div>
-            )}
-            <div className={pvZoom === "fit" ? "" : "pv-scroll"} style={{ ...S.previewWrap, position: "relative" }}>
-              <div className="pv-vguide" style={{ display: "none", position: "absolute", width: 0, borderLeft: "1.5px dashed #FF5C7A", zIndex: 5, pointerEvents: "none" }} />
-              <div className="pv-hguide" style={{ display: "none", position: "absolute", height: 0, borderTop: "1.5px dashed #FF5C7A", zIndex: 5, pointerEvents: "none" }} />
-              {!pvModal && scene && (
-                <button className="btn" title="拡大して編集（大きい画面で位置・サイズを調整）"
-                  style={{ position: "absolute", top: 10, right: 10, zIndex: 6, background: "#1D2129DD", color: "#C9CDD6", border: "1px solid #333A4A", borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 14 }}
-                  onClick={() => setPvModal(true)}><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name="expand" size={14} />拡大</span></button>
-              )}
-              {!pvModal && selected?.startsWith("p") && (
-                <div style={{ position: "absolute", left: 10, bottom: 10, zIndex: 6, background: "#14161CCC", color: "#9AA0AE", border: "1px solid #333A4A", borderRadius: 8, padding: "5px 10px", fontSize: 10.5, pointerEvents: "none", lineHeight: 1.5, backdropFilter: "blur(4px)" }}>
-                  ドラッグで移動 ・ Ctrl+ホイールで拡大縮小 ・ 右クリックで動きをコピー
-                </div>
-              )}
-{!pvModal && previewBoxEl}
-            </div>
-            <div style={S.controls}>
-              <button className="btn" style={S.playBtn} onClick={replay}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="play" />シーン再生</span></button>
-              <button className="btn" style={S.ghostBtn} onClick={() => { setPlaying(false); setSeekT(null); stopLiveAudio(); }}>⏹ 静止表示</button>
-              <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                {[["fit", "フィット"], [0.5, "50%"], [1, "100%"], [2, "200%"]].map(([v, l]) => (
-                  <button key={l} className="btn"
-                    style={{ ...S.frameBtn, ...(pvZoom === v ? S.frameBtnActive : {}), padding: "4px 8px", fontSize: 11 }}
-                    onClick={() => setPvZoom(v)}>{l}</button>
-                ))}
-              </span>
-              <select style={{ ...S.select, padding: "6px 8px", fontSize: 12 }} value={presetKey} onChange={(e) => setPresetKey(e.target.value)}>
-                {Object.entries(PRESETS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-              </select>
-              <button className="btn" style={{ ...S.ghostBtn, fontSize: 12 }} onClick={() => applyPreset(false)}>このシーンに適用</button>
-              <button className="btn" style={{ ...S.ghostBtn, fontSize: 12 }} onClick={() => applyPreset(true)}>全シーンに適用</button>
-              <span style={S.durLabel}>{seekT !== null ? `⏸ ${seekT.toFixed(2)}s` : `登場：${sceneAnimEnd.toFixed(2)}s`} ／ シーン長：<b style={{ color: "#EDEEF2" }}>{scene.duration}s</b></span>
-            </div>
-
-            {/* Timeline */}
-            <div style={{ ...S.timeline, position: "relative" }}>
-              <div style={{ display: "flex", alignItems: "center" }}>
-                <div style={S.panelTitle}>タイムライン（このシーン）　<span style={{ fontWeight: 400, color: "#5C6373" }}>バーをドラッグで移動／右端で伸縮・空きをクリックでジャンプ</span></div>
-                <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, padding: "0 14px", fontSize: 13, color: "#9AA0AE", userSelect: "none" }}>
-                  <Icon name="minus" size={14} style={{ color: "#9AA0AE" }} /><input type="range" min="1" max="6" step="0.5" value={tlZoom} onChange={(e) => setTlZoom(+e.target.value)} style={{ width: 110 }} title="タイムライン拡大" /><Icon name="plus" size={14} style={{ color: "#9AA0AE" }} />
-                </span>
-              </div>
-              <div className="pv-scroll" style={{ overflow: "auto", maxHeight: 240 }}>
-                <div style={{ width: `${tlZoom * 100}%`, minWidth: "100%", position: "relative", paddingBottom: 4 }}
-                  onClick={(e) => {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const trackLeft = rect.left + 150, trackW = rect.width - 162;
-                    const frac = (e.clientX - trackLeft) / trackW;
-                    if (frac >= 0 && frac <= 1) { setPlaying(true); setSeekT(+(frac * tlMax).toFixed(2)); }
-                  }}>
-                  <div style={{ position: "absolute", top: 18, bottom: 0, left: `calc(150px + (100% - 162px) * ${Math.min(1, headT / tlMax)})`, width: 2, background: "#FF5C7A", zIndex: 2, pointerEvents: "none" }} />
-                  <div style={{ position: "relative", padding: "3px 0 2px", height: 16 }}>
-                    {[0, 0.25, 0.5, 0.75, 1].map((f) => (
-                      <span key={f} style={{ ...S.tick, left: `calc(150px + (100% - 162px) * ${f})` }}>{(tlMax * f).toFixed(1)}s</span>
-                    ))}
-                  </div>
-                  {bgm?.src && <AudioTrackRow label="BGM" src={bgm.src} tlMax={tlMax} mode="bgm" sceneStart={sceneStart} />}
-                  {getSceneAudios(scene).map((au, ai) => (
-                    <AudioTrackRow key={au.id || ai} label={`${(au.name || "音声").slice(0, 9)}`} src={au.src} tlMax={tlMax} mode="scene"
-                      delay={au.delay || 0} speed={au.speed || 1} start={au.start || 0} end={au.end || 0}
-                      onSelect={() => setSelected(`au${ai}`)}
-                      onDragDelay={(nd) => {
-                        const next = getSceneAudios(scene).map((x, j) => (j === ai ? { ...x, delay: nd } : x));
-                        updateScene(scene.id, { audios: next, audio: null });
-                      }} />
-                  ))}
-                  {(scene.overlays || []).map((o, oi) => {
-                    const left = ((o.delay || 0) / tlMax) * 100;
-                    const width = o.anim === "none" ? 0 : (Math.min(o.duration || 0.6, tlMax) / tlMax) * 100;
-                    return (
-                      <div key={`tlov${oi}`} style={{ ...S.tlRow, background: selected === `ov${oi}` ? "#232838" : "transparent", borderRadius: 6 }} onClick={(e) => { e.stopPropagation(); setSelected(`ov${oi}`); }}>
-                        <span style={{ ...S.tlName, color: selected === `ov${oi}` ? "#EDEEF2" : "#5FD6C4" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="telop" size={11} />{o.text.slice(0, 7)}</span></span>
-                        <div style={S.tlTrack}>
-                          {o.anim !== "none" && (
-                            <TlBar left={left} width={width} color="#5FD6C4" loop={false} resizable tlMax={tlMax}
-                              title={`${(o.delay || 0)}s → ${((o.delay || 0) + (o.duration || 0.6)).toFixed(2)}s`}
-                              onSelect={() => setSelected(`ov${oi}`)}
-                              onCommit={(patch) => {
-                                const next = scene.overlays.map((x, j) => (j === oi ? { ...x, ...patch } : x));
-                                updateScene(scene.id, { overlays: next });
-                              }} />
-                          )}
-                          {o.exitFade && (
-                            <div style={{ ...S.tlBar, left: `${Math.max(0, ((tlMax - 0.5) / tlMax) * 100)}%`, width: `${(0.5 / tlMax) * 100}%`, background: "repeating-linear-gradient(45deg,#5FD6C4,#5FD6C4 4px,#5FD6C466 4px,#5FD6C466 8px)", pointerEvents: "none" }}
-                              title="退場フェード" />
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {parsed.parts.map((p, i) => {
-                    const s = settings[p.uid];
-                    if (!s) return null;
-                    const loop = isLoop(s);
-                    const left = (s.delay / tlMax) * 100;
-                    const width = s.type === "none" ? 0 : (Math.min(s.duration, tlMax) / tlMax) * 100;
-                    return (
-                      <div key={p.uid} style={{ ...S.tlRow, background: selected === p.uid ? "#232838" : "transparent", borderRadius: 6 }} onClick={(e) => { e.stopPropagation(); setSelected(p.uid); }}>
-                        <span style={{ ...S.tlName, color: selected === p.uid ? "#EDEEF2" : "#9AA0AE" }}>
-                          <PartThumb svgText={scene.svgText} uid={p.uid} />
-                          <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</span>
-                        </span>
-                        <div style={S.tlTrack}>
-                          {s.type !== "none" && (
-                            <TlBar left={left} width={width} loop={loop} resizable={!loop} tlMax={tlMax}
-                              color={loop ? `repeating-linear-gradient(45deg, ${PART_COLORS[i % 8]}, ${PART_COLORS[i % 8]} 6px, ${PART_COLORS[i % 8]}66 6px, ${PART_COLORS[i % 8]}66 12px)` : PART_COLORS[i % 8]}
-                              title={loop ? "ループ（ドラッグで開始位置）" : `${s.delay}s → ${(s.delay + s.duration).toFixed(2)}s`}
-                              onSelect={() => setSelected(p.uid)}
-                              onCommit={(patch) => update(p.uid, patch)} />
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* Settings */}
-          <aside className="col-scroll" style={S.rightPanel}>
+  // 右パネル（アニメーション設定）の中身。メイン画面と拡大編集モーダルで共有
+  const rightPanelContent = !scene ? null : (<>
             <div style={S.panelTitle}>アニメーション設定</div>
             {selected?.startsWith("au") && getSceneAudios(scene)[+selected.slice(2)] ? (() => {
               const ai = +selected.slice(2);
@@ -4277,7 +3909,487 @@ export default function SvgMotionStudio() {
             ) : (
               <p style={S.hint}>左のリストからパーツを選んでください。</p>
             )}
-          </aside>
+  </>);
+
+  return (
+    <div style={S.app}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Noto+Sans+JP:wght@700&family=Noto+Serif+JP:wght@700&family=M+PLUS+Rounded+1c:wght@700&family=Klee+One:wght@600&display=swap');
+        *{box-sizing:border-box} ::selection{background:#8B7CFF55}
+        input,select,button,textarea{font-family:inherit}
+        input[type=range]{accent-color:#8B7CFF}
+        /* --- マイクロインタラクション：滑らかな状態遷移 --- */
+        .btn{transition:filter .15s ease, background-color .15s ease, border-color .15s ease, transform .1s ease, box-shadow .15s ease}
+        .btn:hover{filter:brightness(1.15)}
+        .btn:active{transform:translateY(1px) scale(0.98)}
+        .partRow{transition:background-color .15s ease, border-color .15s ease}
+        .partRow:hover{background:#262B38 !important}
+        .btn:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid #8B7CFF;outline-offset:2px}
+        select,input,textarea{transition:border-color .15s ease, box-shadow .15s ease}
+        select:hover,input:hover,textarea:hover{border-color:#4A5266}
+        input:focus,select:focus,textarea:focus{border-color:#8B7CFF;box-shadow:0 0 0 3px #8B7CFF22}
+        .sceneCard{transition:border-color .18s ease, transform .18s ease, box-shadow .18s ease}
+        .sceneCard:hover{border-color:#8B7CFF88 !important;transform:translateY(-2px);box-shadow:0 6px 20px #0006}
+        .sceneCard svg{width:100%;height:auto;display:block}
+        .ctxItem{display:block;width:100%;text-align:left;background:none;border:none;color:#EDEEF2;font-size:13px;padding:7px 10px;border-radius:6px;cursor:pointer;font-family:inherit;transition:background-color .12s ease}
+        .ctxItem:hover:not(:disabled){background:#2A2F40}
+        .ctxItem:disabled{cursor:default}
+        /* トースト・メニュー・モーダルの出入り */
+        @keyframes vcToastIn{from{opacity:0;transform:translate(-50%,12px)}to{opacity:1;transform:translate(-50%,0)}}
+        @keyframes vcMenuIn{from{opacity:0;transform:translateY(-6px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+        @keyframes vcFadeIn{from{opacity:0}to{opacity:1}}
+        @keyframes vcModalIn{from{opacity:0;transform:scale(.97) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
+        .vc-toast{animation:vcToastIn .28s cubic-bezier(.2,.9,.3,1.2) both}
+        .vc-menu{animation:vcMenuIn .16s ease both;transform-origin:top}
+        .vc-overlay{animation:vcFadeIn .18s ease both}
+        .vc-modal{animation:vcModalIn .24s cubic-bezier(.2,.8,.3,1) both}
+        /* 選択パーツのハイライトを呼吸させる */
+        @keyframes vcSelPulse{0%,100%{opacity:.55}50%{opacity:1}}
+        /* アニメ・ホバープレビュー（小さな四角で動きを再現） */
+        .animChip{position:relative;overflow:hidden;cursor:pointer;user-select:none}
+        .animChip .apreview{position:absolute;inset:0;display:grid;place-items:center;background:#14161C;opacity:0;pointer-events:none;transition:opacity .12s}
+        .animChip:hover .apreview{opacity:1}
+        .animChip .adot{width:16px;height:12px;border-radius:2px;background:linear-gradient(135deg,#8B7CFF,#5FD6C4)}
+        .animChip:hover .adot{animation:var(--akf) 1.1s ease infinite}
+        @keyframes apFade{0%{opacity:0}50%,100%{opacity:1}}
+        @keyframes apSlideUp{0%{transform:translateY(10px);opacity:0}50%,100%{transform:translateY(0);opacity:1}}
+        @keyframes apSlideDown{0%{transform:translateY(-10px);opacity:0}50%,100%{transform:translateY(0);opacity:1}}
+        @keyframes apSlideLeft{0%{transform:translateX(12px);opacity:0}50%,100%{transform:translateX(0);opacity:1}}
+        @keyframes apSlideRight{0%{transform:translateX(-12px);opacity:0}50%,100%{transform:translateX(0);opacity:1}}
+        @keyframes apZoom{0%{transform:scale(.4);opacity:0}50%,100%{transform:scale(1);opacity:1}}
+        @keyframes apPop{0%{transform:scale(0)}60%{transform:scale(1.25)}80%{transform:scale(.92)}100%{transform:scale(1)}}
+        @keyframes apRotate{0%{transform:rotate(-180deg) scale(.5);opacity:0}60%,100%{transform:rotate(0) scale(1);opacity:1}}
+        @keyframes apFloat{0%,100%{transform:translateY(-3px)}50%{transform:translateY(3px)}}
+        @keyframes apPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.3)}}
+        @keyframes apSpin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+        @keyframes apShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+        @keyframes apBlink{0%,49%,100%{opacity:1}50%,99%{opacity:.15}}
+        @keyframes apHeart{0%,100%{transform:scale(1)}15%{transform:scale(1.3)}30%{transform:scale(1)}45%{transform:scale(1.2)}}
+        @keyframes apStamp{0%{transform:scale(2.2);opacity:0}55%{transform:scale(.9);opacity:1}70%{transform:scale(1.05)}100%{transform:scale(1)}}
+        @keyframes apPan{0%{transform:translateX(-6px) scale(1.2)}100%{transform:translateX(6px) scale(1.2)}}
+        @keyframes apPathArc{0%{transform:translate(-8px,0)}50%{transform:translate(-2px,-8px)}100%{transform:translate(0,0)}}
+        @media (prefers-reduced-motion: reduce){*{animation-duration:.001ms !important;transition-duration:.001ms !important}}
+        /* --- ライトモード：全体の配色を反転。実際の色が必要な要素（プレビュー・サムネ・画像・動画・色選択）だけ再反転して実色を維持 --- */
+        html.vc-light{background:#EAEAF0}
+        html.vc-light body{filter:invert(1) hue-rotate(180deg)}
+        html.vc-light .previewBox{filter:invert(1) hue-rotate(180deg)}
+        html.vc-light .previewBox *{filter:none}
+        html.vc-light .sceneCard svg{filter:invert(1) hue-rotate(180deg)}
+        html.vc-light img{filter:invert(1) hue-rotate(180deg)}
+        html.vc-light video{filter:invert(1) hue-rotate(180deg)}
+        html.vc-light input[type=color]{filter:invert(1) hue-rotate(180deg)}
+        html.vc-light .vc-brand{filter:invert(1) hue-rotate(180deg)}
+        html.vc-light .vc-truecolor{filter:invert(1) hue-rotate(180deg)}
+        html.vc-light ::selection{background:#8B7CFF55}
+        /* --- レスポンシブ（900px未満：3カラムを縦積みにして閲覧可能に） --- */
+        @media (max-width: 900px){
+          .vc-main{display:flex !important;flex-direction:column !important;overflow-y:auto !important}
+          .vc-main > *{width:100% !important;max-width:100% !important;border-left:none !important;border-right:none !important;border-bottom:1px solid #262B38}
+          .col-scroll{max-height:none !important;overflow:visible !important}
+          body, #root > div{height:auto !important;min-height:100vh;overflow:auto !important}
+          header{position:sticky;top:0;z-index:20;background:#14161C}
+        }
+        .col-scroll{overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none}
+        .col-scroll::-webkit-scrollbar{display:none}
+        .hbar-noscroll::-webkit-scrollbar{display:none}
+        .pv-scroll{overflow:auto;scrollbar-width:none;-ms-overflow-style:none}
+        .pv-scroll::-webkit-scrollbar{display:none}
+        .previewBox{display:grid;place-items:center}
+        .previewBox.pv-fit svg{width:auto;height:auto;max-width:100%;max-height:100%;display:block}
+        .pv-modal .previewBox{max-height:100%}
+        .pv-modal .previewBox svg{max-height:calc(100vh - 110px) !important;max-width:calc(100vw - 60px) !important}
+
+        .previewBox.pv-zoom svg{width:var(--pvw);height:auto;max-width:none;max-height:none;display:block}
+        @media (prefers-reduced-motion: reduce){ svg *{animation-duration:0.01s !important} }
+      `}</style>
+
+      {/* Header */}
+      <header className="vc-chrome" style={S.header}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 9 }}>
+            <LogoMark size={26} />
+            <span style={S.logo}>Vectimo</span>
+            <span style={{ fontSize: 10.5, color: "#5C6373", letterSpacing: "0.06em", marginTop: 4 }}>SVG MOTION STUDIO</span>
+          </span>
+          <span style={S.sub}>複数SVG → 1本の動画</span>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <span style={{ display: "flex", gap: 2 }}>
+            <button className="btn" style={S.iconBtn} onClick={undo} title="元に戻す（Ctrl+Z）"><Icon name="undo" size={16} /></button>
+            <button className="btn" style={S.iconBtn} onClick={redo} title="やり直す（Ctrl+Shift+Z）"><Icon name="redo" size={16} /></button>
+            <button className="btn" style={S.iconBtn} onClick={() => setLightMode((v) => !v)} title={lightMode ? "ダークモードに切替" : "ライトモードに切替"}>{lightMode ? "🌙" : "☀"}</button>
+          </span>
+          <span style={{ position: "relative" }}>
+            <button className="btn" style={S.ghostBtn} onClick={() => setFileMenu((v) => !v)}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="menu" />メニュー ▾</span></button>
+            {fileMenu && (
+              <>
+                <div style={{ position: "fixed", inset: 0, zIndex: 30 }} onClick={() => setFileMenu(false)} />
+                <div className="vc-menu" style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 31, background: "#1D2129", border: "1px solid #333A4A", borderRadius: 10, padding: 6, minWidth: 200, boxShadow: "0 12px 40px #000A" }}>
+                  <div style={S.menuLabel}>プロジェクト</div>
+                  <button className="ctxItem" onClick={() => { saveProject(false); setFileMenu(false); }}><span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Icon name="save" />プロジェクトを保存（軽量）</span></button>
+                  <button className="ctxItem" onClick={() => { saveProject(true); setFileMenu(false); }}><span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Icon name="save" />素材ごと保存（1ファイル完結）</span></button>
+                  <button className="ctxItem" onClick={() => { projRef.current?.click(); setFileMenu(false); }}><span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Icon name="folder" />プロジェクトを開く</span></button>
+                  <div style={{ borderTop: "1px solid #262B38", margin: "5px 0" }} />
+                  <div style={S.menuLabel}>CSV入稿</div>
+                  <button className="ctxItem" onClick={() => { exportCsvTemplate(); setFileMenu(false); }}><span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Icon name="csvOut" />CSVテンプレを書き出し</span></button>
+                  <button className="ctxItem" onClick={() => { csvRef.current?.click(); setFileMenu(false); }}><span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Icon name="csvIn" />CSVを取り込み</span></button>
+                  <div style={{ borderTop: "1px solid #262B38", margin: "5px 0" }} />
+                  <div style={S.menuLabel}>この他</div>
+                  <button className="ctxItem" onClick={() => { setInputOpen((v) => !v); setFileMenu(false); }}><span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Icon name="code" />SVGコードを編集</span></button>
+                  <button className="ctxItem" onClick={() => { exportSvg(); setFileMenu(false); }}><span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Icon name="image" />このシーンをSVG書き出し</span></button>
+                  <button className="ctxItem" onClick={() => { setHintsDone(false); setFileMenu(false); }}><span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Icon name="lightbulb" size={14} />操作ヒントを再表示</span></button>
+                  <a className="ctxItem" href="vectimo-guide.html" target="_blank" rel="noopener" style={{ textDecoration: "none" }} onClick={() => setFileMenu(false)}><span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Icon name="folder" size={14} />使い方ガイドを開く</span></a>
+                </div>
+              </>
+            )}
+          </span>
+          <input ref={projRef} type="file" accept=".json" style={{ display: "none" }} onChange={loadProject} />
+          <input ref={csvRef} type="file" accept=".csv,text/csv" style={{ display: "none" }} onChange={importCsv} />
+          <button className="btn" style={S.primaryBtn} onClick={() => setSeqOpen(true)}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="play" />全再生（{totalVideo.toFixed(1)}s）</span></button>
+          <button className="btn" style={S.exportBtn} onClick={() => setMp4Open(true)}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="film" />MP4書き出し</span></button>
+        </div>
+      </header>
+
+      {/* フレーム設定 */}
+      <div style={S.frameBar}>
+        <span style={S.frameLabel}>出力サイズ</span>
+        {Object.entries(FRAMES).map(([k, v]) => (
+          <button key={k} className="btn" onClick={() => setFrame((f) => ({ ...f, ratio: k }))}
+            style={{ ...S.frameBtn, ...(frame.ratio === k ? S.frameBtnActive : {}) }}>{v.label}</button>
+        ))}
+        {frame.ratio !== "original" && (
+          <>
+            <span style={{ ...S.frameLabel, marginLeft: 10 }}>収め方</span>
+            <select style={S.transSelect} value={frame.fit} onChange={(e) => setFrame((f) => ({ ...f, fit: e.target.value }))}>
+              <option value="cover">切り抜き（カバー）</option>
+              <option value="contain">全体表示（余白）</option>
+            </select>
+            <select style={S.transSelect} value={frame.align} onChange={(e) => setFrame((f) => ({ ...f, align: e.target.value }))} title="位置">
+              {Object.entries(ALIGNS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+            {frame.fit === "contain" && (
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "#9AA0AE" }}>
+                余白色
+                <input type="color" value={frame.bg} onChange={(e) => setFrame((f) => ({ ...f, bg: e.target.value }))}
+                  style={{ width: 26, height: 22, border: "1px solid #333A4A", borderRadius: 5, background: "#1D2129", padding: 1, cursor: "pointer" }} />
+              </label>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* 音声バー（BGMはここに音声ファイルをドロップでも設定可能） */}
+      <div style={S.frameBar}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          const all = Array.from(e.dataTransfer.files || []);
+          const f = all.find((x) => x.type.startsWith("audio/"));
+          const bad = all.filter((x) => !x.type.startsWith("audio/"));
+          if (bad.length) window.alert(`音声ファイルではないためスキップしました：\n${bad.map((x) => x.name).join("\n")}`);
+          if (f) setBgm({ src: URL.createObjectURL(f), name: f.name, volume: 0.6, loop: true, fadeIn: 1, fadeOut: 1.5 });
+        }}>
+        <span style={S.frameLabel}><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name="music" size={13} />BGM（動画全体）</span></span>
+        {bgm ? (
+          <>
+            <span style={{ fontSize: 11.5, color: "#C9CDD6", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{bgm.name}</span>
+            <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#9AA0AE" }}>
+              音量<input type="range" min="0" max="1" step="0.05" value={bgm.volume} onChange={(e) => setBgm({ ...bgm, volume: +e.target.value })} style={{ width: 70 }} />
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#9AA0AE" }}>
+              フェードイン<input type="number" min="0" max="10" step="0.5" value={bgm.fadeIn} onChange={(e) => setBgm({ ...bgm, fadeIn: Math.max(0, +e.target.value || 0) })} style={S.numInput} />s
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#9AA0AE" }}>
+              アウト<input type="number" min="0" max="10" step="0.5" value={bgm.fadeOut} onChange={(e) => setBgm({ ...bgm, fadeOut: Math.max(0, +e.target.value || 0) })} style={S.numInput} />s
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#9AA0AE", cursor: "pointer" }}>
+              <input type="checkbox" checked={bgm.loop !== false} onChange={(e) => setBgm({ ...bgm, loop: e.target.checked })} />ループ
+            </label>
+            <button className="btn" style={{ ...S.frameBtn, color: "#FF8FA3" }} onClick={() => setBgm(null)}><span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="x" size={12} />解除</span></button>
+          </>
+        ) : (
+          <button className="btn" style={S.frameBtn} onClick={() => bgmFileRef.current?.click()}>＋ BGMを選択</button>
+        )}
+        <input ref={bgmFileRef} type="file" accept="audio/*" style={{ display: "none" }} onChange={(e) => {
+          const f = e.target.files?.[0]; e.target.value = "";
+          if (f) setBgm({ src: URL.createObjectURL(f), name: f.name, volume: 0.6, loop: true, fadeIn: 1, fadeOut: 1.5 });
+        }} />
+
+        <span style={{ fontSize: 11.5, color: "#5C6373", marginLeft: 14 }}>シーン音声は左のパーツ一覧の下部から追加できます（複数可・このバーに音声をドロップするとBGMに設定）</span>
+        <input ref={audioFileRef} type="file" accept="audio/*" multiple style={{ display: "none" }} onChange={(e) => { addSceneAudios(e.target.files); e.target.value = ""; }} />
+      </div>
+
+      {/* シーンストリップ（SVGをドロップで追加） */}
+      <div className="hbar-noscroll" style={S.sceneStrip}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          const all = Array.from(e.dataTransfer.files || []);
+          const ok = (f) => f.type === "image/svg+xml" || /\.(svg|png|jpe?g|webp|gif)$/i.test(f.name) || /^image\//.test(f.type);
+          const good = all.filter(ok);
+          if (good.length) addScenesFromFiles(good);
+          else if (all.length) window.alert(`対応していないファイルです：\n${all.map((f) => f.name).join("\n")}\n（SVG・PNG・JPG・WebPに対応）`);
+        }}>
+        {scenes.map((s, i) => {
+          const active = s.id === activeId;
+          const thumb = getSceneThumb(s.svgText);
+          return (
+            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div className="sceneCard" onClick={() => setActiveId(s.id)}
+                draggable
+                onDragStart={(e) => { dragSceneRef.current = s.id; e.dataTransfer.effectAllowed = "move"; }}
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const fromId = dragSceneRef.current;
+                  if (!fromId || fromId === s.id) return;
+                  setScenesH((sc) => {
+                    const from = sc.findIndex((x) => x.id === fromId);
+                    const to = sc.findIndex((x) => x.id === s.id);
+                    if (from < 0 || to < 0) return sc;
+                    const next = [...sc];
+                    const [moved] = next.splice(from, 1);
+                    next.splice(to, 0, moved);
+                    return next;
+                  });
+                  dragSceneRef.current = null;
+                }}
+                style={{ ...S.sceneCard, borderColor: active ? "#8B7CFF" : "#333A4A", boxShadow: active ? "0 0 0 1px #8B7CFF" : "none" }}>
+                <div style={S.sceneThumb} dangerouslySetInnerHTML={{ __html: thumb }} />
+                <div style={S.sceneCardBody}>
+                  <div style={S.sceneName} title={s.name}>{i + 1}. {s.name}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <input type="number" min="0.5" step="0.5" value={s.duration}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => updateScene(s.id, { duration: Math.max(0.3, +e.target.value || 0.3) })}
+                      style={S.durInput} aria-label="シーンの長さ（秒）" />
+                    <span style={{ fontSize: 10, color: "#9AA0AE" }}>秒</span>
+                  </div>
+                </div>
+                <div style={S.sceneOps} onClick={(e) => e.stopPropagation()}>
+                  <button className="btn" style={S.miniBtn} onClick={() => moveScene(s.id, -1)} title="左へ">◀</button>
+                  <button className="btn" style={S.miniBtn} onClick={() => moveScene(s.id, 1)} title="右へ">▶</button>
+                  <button className="btn" style={S.miniBtn} onClick={() => duplicateScene(s.id)} title="複製">⧉</button>
+                  <button className="btn" style={{ ...S.miniBtn, color: "#FF8FA3", display: "inline-flex", alignItems: "center" }} onClick={() => removeScene(s.id)} title="削除"><Icon name="x" size={12} /></button>
+                </div>
+              </div>
+              {i < scenes.length - 1 && (
+                <select
+                  value={s.transition.type}
+                  onChange={(e) => updateScene(s.id, { transition: { ...s.transition, type: e.target.value, duration: e.target.value === "cut" ? 0 : (s.transition.duration || 0.6) } })}
+                  style={S.transSelect} title="次のシーンへのトランジション">
+                  {Object.entries(TRANSITIONS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              )}
+            </div>
+          );
+        })}
+        <button className="btn" style={S.addSceneBtn} onClick={() => fileRef.current?.click()}>＋ 素材を追加<br /><span style={{ fontSize: 10, fontWeight: 400 }}>（SVG・画像／複数OK）</span></button>
+        <button className="btn" style={{ ...S.miniBtn, color: "#FF8FA3", fontSize: 12, padding: "8px 10px", flexShrink: 0, border: "1px solid #7A3B4A", borderRadius: 8 }}
+          onClick={() => {
+            if (!window.confirm(`全${scenes.length}シーンを削除します。よろしいですか？（Ctrl+Zで戻せます）`)) return;
+            setScenesH([]);
+            setActiveId(null);
+            setSelected(null);
+          }}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="trash" size={13} />全シーン削除</span></button>
+        <button className="btn" style={{ ...S.miniBtn, color: "#5FD6C4", fontSize: 12, padding: "8px 10px", flexShrink: 0, border: "1px solid #2E5B54", borderRadius: 8 }}
+          onClick={() => setBulkOpen(true)}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="layers" size={13} />メディア一括割当</span></button>
+
+        <input ref={fileRef} type="file" accept=".svg,image/svg+xml,image/png,image/jpeg,image/webp,image/gif" multiple style={{ display: "none" }} onChange={(e) => { addScenesFromFiles(e.target.files); e.target.value = ""; }} />
+      </div>
+
+      {/* SVGコード編集 */}
+      {inputOpen && scene && (
+        <div style={S.inputPanel}>
+          <textarea style={S.textarea} value={scene.svgText} spellCheck={false} aria-label="SVGコード"
+            onChange={(e) => {
+              const text = e.target.value;
+              const p = parseSvg(text);
+              const nextSettings = {};
+              if (p.parts) p.parts.forEach((pt, i) => { nextSettings[pt.uid] = scene.settings[pt.uid] || { ...defaultSetting(), delay: +(i * 0.25).toFixed(2) }; });
+              updateScene(scene.id, { svgText: text, settings: nextSettings });
+            }} />
+          <p style={S.hint}>編集中のシーン：{scene.name}。レイヤーにid名を付けるとパーツ名として表示されます。</p>
+        </div>
+      )}
+
+      {scenes.length === 0 ? (
+        <div style={{ flex: 1, display: "grid", placeItems: "center", padding: 40, textAlign: "center" }}>
+          <div>
+            <div style={{ marginBottom: 16, display: "flex", justifyContent: "center" }}><LogoMark size={52} /></div>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>SVGを追加して始めましょう</div>
+            <p style={{ fontSize: 13, color: "#9AA0AE", lineHeight: 1.8, marginBottom: 20 }}>
+              「＋ 素材を追加」から <b>SVG・写真（PNG/JPG）</b> を1枚または複数読み込むと、<br />シーンとして並べてアニメーション動画を作れます。<br />写真はズームやパンで動かして、思い出のスライドショーにも。<br />保存したプロジェクト（JSON）は「☰ メニュー → プロジェクトを開く」から読み込めます。<br /><a href="vectimo-guide.html" target="_blank" rel="noopener" style={{ color: "#8B7CFF" }}>使い方ガイドを見る →</a>
+              {hasAutosave && (
+                <div style={{ marginTop: 18 }}>
+                  <button className="btn" onClick={restoreAutosave}
+                    style={{ background: "linear-gradient(100deg,#2B2350,#1D2129)", border: "1.5px solid #8B7CFF", borderRadius: 10, padding: "11px 22px", cursor: "pointer", color: "#EDEEF2", fontWeight: 700, fontSize: 13.5 }}>
+                    前回の作業を復元する
+                  </button>
+                  <div style={{ fontSize: 10.5, color: "#5C6373", marginTop: 6 }}>作業内容はこのブラウザに自動保存されています</div>
+                </div>
+              )}
+              <div style={{ marginTop: 22 }}>
+                <div style={{ fontSize: 12.5, color: "#9AA0AE", marginBottom: 10 }}>— または、テンプレートから始める —</div>
+                <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+                  {TEMPLATES.map((t) => (
+                    <button key={t.id} className="btn" onClick={() => loadTemplate(t)}
+                      style={{ background: "#1D2129", border: "1px solid #333A4A", borderRadius: 10, padding: "12px 16px", cursor: "pointer", color: "#EDEEF2", textAlign: "left", width: 190 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 4 }}>{t.name}</div>
+                      <div style={{ fontSize: 11, color: "#9AA0AE", lineHeight: 1.5 }}>{t.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </p>
+            <button className="btn" style={S.primaryBtn} onClick={() => fileRef.current?.click()}>＋ 素材を追加</button>
+          </div>
+        </div>
+      ) : parsed.error ? (
+        <div style={S.errorBox}>{parsed.error}</div>
+      ) : (
+        <div className="vc-main" style={S.main}>
+          {/* Parts list */}
+          <aside className="vc-chrome" style={S.leftPanel}>{leftPanelContent}</aside>
+
+          {/* Center */}
+          <section className="col-scroll" style={S.center}>
+            {!hintsDone && scene && (
+              <div className="vc-overlay" style={{ margin: "12px 16px 0", background: "linear-gradient(100deg,#1E1B33,#171A22)", border: "1px solid #3B3566", borderRadius: 12, padding: "12px 14px", display: "flex", alignItems: "flex-start", gap: 12 }}>
+                <span style={{ display: "inline-flex", color: "#B9A5FF" }}><Icon name="lightbulb" size={18} /></span>
+                <div style={{ flex: 1, fontSize: 12.5, color: "#C9CDD6", lineHeight: 1.85 }}>
+                  <b style={{ color: "#EDEEF2" }}>知っておくと便利な操作</b>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 16px", marginTop: 3 }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="mouse" size={12} />パーツを<b>ドラッグで移動</b></span>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="search" size={12} /><b>Ctrl＋ホイール</b>／ピンチで拡大縮小</span>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="copy" size={12} />パーツを選択して<b>右パネル</b>から動きのコピー・保存</span>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="settings" size={12} />タイムラインのバーは<b>ドラッグで移動・右端で伸縮</b></span>
+                    <span>⤢ プレビュー右上で<b>拡大編集</b></span>
+                  </div>
+                </div>
+                <button className="btn" style={{ ...S.ghostBtn, padding: "5px 10px", fontSize: 11.5, flexShrink: 0 }} onClick={() => setHintsDone(true)}>閉じる</button>
+              </div>
+            )}
+            <div className={pvZoom === "fit" ? "" : "pv-scroll"} style={{ ...S.previewWrap, position: "relative" }}>
+              <div className="pv-vguide" style={{ display: "none", position: "absolute", width: 0, borderLeft: "1.5px dashed #FF5C7A", zIndex: 5, pointerEvents: "none" }} />
+              <div className="pv-hguide" style={{ display: "none", position: "absolute", height: 0, borderTop: "1.5px dashed #FF5C7A", zIndex: 5, pointerEvents: "none" }} />
+              {!pvModal && scene && (
+                <button className="btn" title="拡大して編集（大きい画面で位置・サイズを調整）"
+                  style={{ position: "absolute", top: 10, right: 10, zIndex: 6, background: "#1D2129DD", color: "#C9CDD6", border: "1px solid #333A4A", borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 14 }}
+                  onClick={() => setPvModal(true)}><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name="expand" size={14} />拡大</span></button>
+              )}
+              {!pvModal && selected?.startsWith("p") && (
+                <div style={{ position: "absolute", left: 10, bottom: 10, zIndex: 6, background: "#14161CCC", color: "#9AA0AE", border: "1px solid #333A4A", borderRadius: 8, padding: "5px 10px", fontSize: 10.5, pointerEvents: "none", lineHeight: 1.5, backdropFilter: "blur(4px)" }}>
+                  ドラッグで移動 ・ Ctrl+ホイール／ピンチで拡大縮小
+                </div>
+              )}
+{!pvModal && previewBoxEl}
+            </div>
+            <div style={S.controls}>
+              <button className="btn" style={S.playBtn} onClick={replay}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="play" />シーン再生</span></button>
+              <button className="btn" style={S.ghostBtn} onClick={() => { setPlaying(false); setSeekT(null); stopLiveAudio(); }}>⏹ 静止表示</button>
+              <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                {[["fit", "フィット"], [0.5, "50%"], [1, "100%"], [2, "200%"]].map(([v, l]) => (
+                  <button key={l} className="btn"
+                    style={{ ...S.frameBtn, ...(pvZoom === v ? S.frameBtnActive : {}), padding: "4px 8px", fontSize: 11 }}
+                    onClick={() => setPvZoom(v)}>{l}</button>
+                ))}
+              </span>
+              <select style={{ ...S.select, padding: "6px 8px", fontSize: 12 }} value={presetKey} onChange={(e) => setPresetKey(e.target.value)}>
+                {Object.entries(PRESETS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+              <button className="btn" style={{ ...S.ghostBtn, fontSize: 12 }} onClick={() => applyPreset(false)}>このシーンに適用</button>
+              <button className="btn" style={{ ...S.ghostBtn, fontSize: 12 }} onClick={() => applyPreset(true)}>全シーンに適用</button>
+              <span style={S.durLabel}>{seekT !== null ? `⏸ ${seekT.toFixed(2)}s` : `登場：${sceneAnimEnd.toFixed(2)}s`} ／ シーン長：<b style={{ color: "#EDEEF2" }}>{scene.duration}s</b></span>
+            </div>
+
+            {/* Timeline */}
+            <div style={{ ...S.timeline, position: "relative" }}>
+              <div style={{ display: "flex", alignItems: "center" }}>
+                <div style={S.panelTitle}>タイムライン（このシーン）　<span style={{ fontWeight: 400, color: "#5C6373" }}>バーをドラッグで移動／右端で伸縮・空きをクリックでジャンプ</span></div>
+                <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, padding: "0 14px", fontSize: 13, color: "#9AA0AE", userSelect: "none" }}>
+                  <Icon name="minus" size={14} style={{ color: "#9AA0AE" }} /><input type="range" min="1" max="6" step="0.5" value={tlZoom} onChange={(e) => setTlZoom(+e.target.value)} style={{ width: 110 }} title="タイムライン拡大" /><Icon name="plus" size={14} style={{ color: "#9AA0AE" }} />
+                </span>
+              </div>
+              <div className="pv-scroll" ref={tlScrollRef} style={{ overflow: "auto", maxHeight: 240 }}>
+                <div style={{ width: `${tlZoom * 100}%`, minWidth: "100%", position: "relative", paddingBottom: 4 }}
+                  onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const trackLeft = rect.left + 150, trackW = rect.width - 162;
+                    const frac = (e.clientX - trackLeft) / trackW;
+                    if (frac >= 0 && frac <= 1) { setPlaying(true); setSeekT(+(frac * tlMax).toFixed(2)); }
+                  }}>
+                  <div style={{ position: "absolute", top: 18, bottom: 0, left: `calc(150px + (100% - 162px) * ${Math.min(1, headT / tlMax)})`, width: 2, background: "#FF5C7A", zIndex: 2, pointerEvents: "none" }} />
+                  <div style={{ position: "relative", padding: "3px 0 2px", height: 16 }}>
+                    {[0, 0.25, 0.5, 0.75, 1].map((f) => (
+                      <span key={f} style={{ ...S.tick, left: `calc(150px + (100% - 162px) * ${f})` }}>{(tlMax * f).toFixed(1)}s</span>
+                    ))}
+                  </div>
+                  {bgm?.src && <AudioTrackRow label="BGM" src={bgm.src} tlMax={tlMax} mode="bgm" sceneStart={sceneStart} />}
+                  {getSceneAudios(scene).map((au, ai) => (
+                    <AudioTrackRow key={au.id || ai} label={`${(au.name || "音声").slice(0, 9)}`} src={au.src} tlMax={tlMax} mode="scene"
+                      delay={au.delay || 0} speed={au.speed || 1} start={au.start || 0} end={au.end || 0}
+                      onSelect={() => setSelected(`au${ai}`)}
+                      onDragDelay={(nd) => {
+                        const next = getSceneAudios(scene).map((x, j) => (j === ai ? { ...x, delay: nd } : x));
+                        updateScene(scene.id, { audios: next, audio: null });
+                      }} />
+                  ))}
+                  {(scene.overlays || []).map((o, oi) => {
+                    const left = ((o.delay || 0) / tlMax) * 100;
+                    const width = o.anim === "none" ? 0 : (Math.min(o.duration || 0.6, tlMax) / tlMax) * 100;
+                    return (
+                      <div key={`tlov${oi}`} style={{ ...S.tlRow, background: selected === `ov${oi}` ? "#232838" : "transparent", borderRadius: 6 }} onClick={(e) => { e.stopPropagation(); setSelected(`ov${oi}`); }}>
+                        <span style={{ ...S.tlName, color: selected === `ov${oi}` ? "#EDEEF2" : "#5FD6C4" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="telop" size={11} />{o.text.slice(0, 7)}</span></span>
+                        <div style={S.tlTrack}>
+                          {o.anim !== "none" && (
+                            <TlBar left={left} width={width} color="#5FD6C4" loop={false} resizable tlMax={tlMax}
+                              title={`${(o.delay || 0)}s → ${((o.delay || 0) + (o.duration || 0.6)).toFixed(2)}s`}
+                              onSelect={() => setSelected(`ov${oi}`)}
+                              onCommit={(patch) => {
+                                const next = scene.overlays.map((x, j) => (j === oi ? { ...x, ...patch } : x));
+                                updateScene(scene.id, { overlays: next });
+                              }} />
+                          )}
+                          {o.exitFade && (
+                            <div style={{ ...S.tlBar, left: `${Math.max(0, ((tlMax - 0.5) / tlMax) * 100)}%`, width: `${(0.5 / tlMax) * 100}%`, background: "repeating-linear-gradient(45deg,#5FD6C4,#5FD6C4 4px,#5FD6C466 4px,#5FD6C466 8px)", pointerEvents: "none" }}
+                              title="退場フェード" />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {parsed.parts.map((p, i) => {
+                    const s = settings[p.uid];
+                    if (!s) return null;
+                    const loop = isLoop(s);
+                    const left = (s.delay / tlMax) * 100;
+                    const width = s.type === "none" ? 0 : (Math.min(s.duration, tlMax) / tlMax) * 100;
+                    return (
+                      <div key={p.uid} style={{ ...S.tlRow, background: selected === p.uid ? "#232838" : "transparent", borderRadius: 6 }} onClick={(e) => { e.stopPropagation(); setSelected(p.uid); }}>
+                        <span style={{ ...S.tlName, color: selected === p.uid ? "#EDEEF2" : "#9AA0AE" }}>
+                          <PartThumb svgText={scene.svgText} uid={p.uid} />
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</span>
+                        </span>
+                        <div style={S.tlTrack}>
+                          {s.type !== "none" && (
+                            <TlBar left={left} width={width} loop={loop} resizable={!loop} tlMax={tlMax}
+                              color={loop ? `repeating-linear-gradient(45deg, ${PART_COLORS[i % 8]}, ${PART_COLORS[i % 8]} 6px, ${PART_COLORS[i % 8]}66 6px, ${PART_COLORS[i % 8]}66 12px)` : PART_COLORS[i % 8]}
+                              title={loop ? "ループ（ドラッグで開始位置）" : `${s.delay}s → ${(s.delay + s.duration).toFixed(2)}s`}
+                              onSelect={() => setSelected(p.uid)}
+                              onCommit={(patch) => update(p.uid, patch)} />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Settings */}
+          <aside className="col-scroll vc-chrome" style={S.rightPanel}>{rightPanelContent}</aside>
         </div>
       )}
 
@@ -4292,10 +4404,18 @@ export default function SvgMotionStudio() {
               <button className="btn" style={{ ...S.ghostBtn, fontSize: 15, padding: "6px 12px" }} onClick={() => setPvModal(false)}><Icon name="x" size={16} /></button>
             </div>
           </div>
-          <div className="pv-modal" style={{ flex: 1, minHeight: 0, display: "grid", placeItems: "center", padding: "0 20px 20px", position: "relative" }}>
-            <div className="pv-vguide" style={{ display: "none", position: "absolute", width: 0, borderLeft: "1.5px dashed #FF5C7A", zIndex: 5, pointerEvents: "none" }} />
-            <div className="pv-hguide" style={{ display: "none", position: "absolute", height: 0, borderTop: "1.5px dashed #FF5C7A", zIndex: 5, pointerEvents: "none" }} />
-            {previewBoxEl}
+          <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
+            <aside className="col-scroll vc-chrome" style={{ ...S.leftPanel, width: 220, flexShrink: 0, background: "#171A22", borderRight: "1px solid #262B38", maxHeight: "100%", overflowY: "auto" }}>
+              {leftPanelContent}
+            </aside>
+            <div className="pv-modal" style={{ flex: 1, minWidth: 0, minHeight: 0, display: "grid", placeItems: "center", padding: "0 20px 20px", position: "relative" }}>
+              <div className="pv-vguide" style={{ display: "none", position: "absolute", width: 0, borderLeft: "1.5px dashed #FF5C7A", zIndex: 5, pointerEvents: "none" }} />
+              <div className="pv-hguide" style={{ display: "none", position: "absolute", height: 0, borderTop: "1.5px dashed #FF5C7A", zIndex: 5, pointerEvents: "none" }} />
+              {previewBoxEl}
+            </div>
+            <aside className="col-scroll vc-chrome" style={{ ...S.rightPanel, width: 300, flexShrink: 0, background: "#171A22", maxHeight: "100%", overflowY: "auto" }}>
+              {rightPanelContent}
+            </aside>
           </div>
         </div>
       )}
@@ -4315,9 +4435,10 @@ export default function SvgMotionStudio() {
       )}
       {cropData && <ImageCropModal dataUrl={cropData.dataUrl} box={cropData.box} onApply={applyCrop} onClose={() => setCropData(null)} />}
       {videoEdit && <VideoEditModal video={videoEdit.video} box={videoEdit.box} onApply={applyVideoEdit} onClose={() => setVideoEdit(null)} />}
-      <footer style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 18, padding: "5px 12px", borderTop: "1px solid #262B38", background: "#14161C", fontSize: 10.5, color: "#5C6373" }}>
+      <footer className="vc-chrome" style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 18, padding: "5px 12px", borderTop: "1px solid #262B38", background: "#14161C", fontSize: 10.5, color: "#5C6373" }}>
         <span>© Vectimo</span>
         <a href="./" style={{ color: "#9AA0AE", textDecoration: "none" }}>トップ</a>
+        <a href="blog/" target="_blank" rel="noopener" style={{ color: "#9AA0AE", textDecoration: "none" }}>ブログ</a>
         <a href="vectimo-guide.html" target="_blank" rel="noopener" style={{ color: "#9AA0AE", textDecoration: "none" }}>使い方ガイド</a>
         <a href="vectimo-terms.html" target="_blank" rel="noopener" style={{ color: "#9AA0AE", textDecoration: "none" }}>利用規約</a>
         <a href="vectimo-privacy.html" target="_blank" rel="noopener" style={{ color: "#9AA0AE", textDecoration: "none" }}>プライバシーポリシー</a>
