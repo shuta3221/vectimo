@@ -8308,955 +8308,7 @@ function SvgMotionStudio() {
     return scenes.slice(0, Math.max(0, idx)).reduce((a, s) => a + Math.max(0.3, s.duration), 0);
   }, [scenes, activeId]);
   const headT = seekT !== null ? seekT : liveT;
-  return React.createElement("div", {
-    style: S.app
-  }, React.createElement("style", null, `
-        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Noto+Sans+JP:wght@700&family=Noto+Serif+JP:wght@700&family=M+PLUS+Rounded+1c:wght@700&family=Klee+One:wght@600&display=swap');
-        *{box-sizing:border-box} ::selection{background:#8B7CFF55}
-        input,select,button,textarea{font-family:inherit}
-        input[type=range]{accent-color:#8B7CFF}
-        /* --- マイクロインタラクション：滑らかな状態遷移 --- */
-        .btn{transition:filter .15s ease, background-color .15s ease, border-color .15s ease, transform .1s ease, box-shadow .15s ease}
-        .btn:hover{filter:brightness(1.15)}
-        .btn:active{transform:translateY(1px) scale(0.98)}
-        .partRow{transition:background-color .15s ease, border-color .15s ease}
-        .partRow:hover{background:#262B38 !important}
-        .btn:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid #8B7CFF;outline-offset:2px}
-        select,input,textarea{transition:border-color .15s ease, box-shadow .15s ease}
-        select:hover,input:hover,textarea:hover{border-color:#4A5266}
-        input:focus,select:focus,textarea:focus{border-color:#8B7CFF;box-shadow:0 0 0 3px #8B7CFF22}
-        .sceneCard{transition:border-color .18s ease, transform .18s ease, box-shadow .18s ease}
-        .sceneCard:hover{border-color:#8B7CFF88 !important;transform:translateY(-2px);box-shadow:0 6px 20px #0006}
-        .sceneCard svg{width:100%;height:auto;display:block}
-        .ctxItem{display:block;width:100%;text-align:left;background:none;border:none;color:#EDEEF2;font-size:13px;padding:7px 10px;border-radius:6px;cursor:pointer;font-family:inherit;transition:background-color .12s ease}
-        .ctxItem:hover:not(:disabled){background:#2A2F40}
-        .ctxItem:disabled{cursor:default}
-        /* トースト・メニュー・モーダルの出入り */
-        @keyframes vcToastIn{from{opacity:0;transform:translate(-50%,12px)}to{opacity:1;transform:translate(-50%,0)}}
-        @keyframes vcMenuIn{from{opacity:0;transform:translateY(-6px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
-        @keyframes vcFadeIn{from{opacity:0}to{opacity:1}}
-        @keyframes vcModalIn{from{opacity:0;transform:scale(.97) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
-        .vc-toast{animation:vcToastIn .28s cubic-bezier(.2,.9,.3,1.2) both}
-        .vc-menu{animation:vcMenuIn .16s ease both;transform-origin:top}
-        .vc-overlay{animation:vcFadeIn .18s ease both}
-        .vc-modal{animation:vcModalIn .24s cubic-bezier(.2,.8,.3,1) both}
-        /* 選択パーツのハイライトを呼吸させる */
-        @keyframes vcSelPulse{0%,100%{opacity:.55}50%{opacity:1}}
-        /* アニメ・ホバープレビュー（小さな四角で動きを再現） */
-        .animChip{position:relative;overflow:hidden;cursor:pointer;user-select:none}
-        .animChip .apreview{position:absolute;inset:0;display:grid;place-items:center;background:#14161C;opacity:0;pointer-events:none;transition:opacity .12s}
-        .animChip:hover .apreview{opacity:1}
-        .animChip .adot{width:16px;height:12px;border-radius:2px;background:linear-gradient(135deg,#8B7CFF,#5FD6C4)}
-        .animChip:hover .adot{animation:var(--akf) 1.1s ease infinite}
-        @keyframes apFade{0%{opacity:0}50%,100%{opacity:1}}
-        @keyframes apSlideUp{0%{transform:translateY(10px);opacity:0}50%,100%{transform:translateY(0);opacity:1}}
-        @keyframes apSlideDown{0%{transform:translateY(-10px);opacity:0}50%,100%{transform:translateY(0);opacity:1}}
-        @keyframes apSlideLeft{0%{transform:translateX(12px);opacity:0}50%,100%{transform:translateX(0);opacity:1}}
-        @keyframes apSlideRight{0%{transform:translateX(-12px);opacity:0}50%,100%{transform:translateX(0);opacity:1}}
-        @keyframes apZoom{0%{transform:scale(.4);opacity:0}50%,100%{transform:scale(1);opacity:1}}
-        @keyframes apPop{0%{transform:scale(0)}60%{transform:scale(1.25)}80%{transform:scale(.92)}100%{transform:scale(1)}}
-        @keyframes apRotate{0%{transform:rotate(-180deg) scale(.5);opacity:0}60%,100%{transform:rotate(0) scale(1);opacity:1}}
-        @keyframes apFloat{0%,100%{transform:translateY(-3px)}50%{transform:translateY(3px)}}
-        @keyframes apPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.3)}}
-        @keyframes apSpin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
-        @keyframes apShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
-        @keyframes apBlink{0%,49%,100%{opacity:1}50%,99%{opacity:.15}}
-        @keyframes apHeart{0%,100%{transform:scale(1)}15%{transform:scale(1.3)}30%{transform:scale(1)}45%{transform:scale(1.2)}}
-        @keyframes apStamp{0%{transform:scale(2.2);opacity:0}55%{transform:scale(.9);opacity:1}70%{transform:scale(1.05)}100%{transform:scale(1)}}
-        @keyframes apPan{0%{transform:translateX(-6px) scale(1.2)}100%{transform:translateX(6px) scale(1.2)}}
-        @keyframes apPathArc{0%{transform:translate(-8px,0)}50%{transform:translate(-2px,-8px)}100%{transform:translate(0,0)}}
-        @media (prefers-reduced-motion: reduce){*{animation-duration:.001ms !important;transition-duration:.001ms !important}}
-        /* --- ライトモード：全体の配色を反転。実際の色が必要な要素（プレビュー・サムネ・画像・動画・色選択）だけ再反転して実色を維持 --- */
-        html.vc-light{background:#EAEAF0}
-        html.vc-light body{filter:invert(1) hue-rotate(180deg)}
-        html.vc-light .previewBox{filter:invert(1) hue-rotate(180deg)}
-        html.vc-light .previewBox *{filter:none}
-        html.vc-light .sceneCard svg{filter:invert(1) hue-rotate(180deg)}
-        html.vc-light img{filter:invert(1) hue-rotate(180deg)}
-        html.vc-light video{filter:invert(1) hue-rotate(180deg)}
-        html.vc-light input[type=color]{filter:invert(1) hue-rotate(180deg)}
-        html.vc-light .vc-brand{filter:invert(1) hue-rotate(180deg)}
-        html.vc-light .vc-truecolor{filter:invert(1) hue-rotate(180deg)}
-        html.vc-light ::selection{background:#8B7CFF55}
-        /* --- レスポンシブ（900px未満：3カラムを縦積みにして閲覧可能に） --- */
-        @media (max-width: 900px){
-          .vc-main{display:flex !important;flex-direction:column !important;overflow-y:auto !important}
-          .vc-main > *{width:100% !important;max-width:100% !important;border-left:none !important;border-right:none !important;border-bottom:1px solid #262B38}
-          .col-scroll{max-height:none !important;overflow:visible !important}
-          body, #root > div{height:auto !important;min-height:100vh;overflow:auto !important}
-          header{position:sticky;top:0;z-index:20;background:#14161C}
-        }
-        .col-scroll{overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none}
-        .col-scroll::-webkit-scrollbar{display:none}
-        .hbar-noscroll::-webkit-scrollbar{display:none}
-        .pv-scroll{overflow:auto;scrollbar-width:none;-ms-overflow-style:none}
-        .pv-scroll::-webkit-scrollbar{display:none}
-        .previewBox{display:grid;place-items:center}
-        .previewBox.pv-fit svg{width:auto;height:auto;max-width:100%;max-height:100%;display:block}
-        .pv-modal .previewBox{max-height:100%}
-        .pv-modal .previewBox svg{max-height:calc(100vh - 110px) !important;max-width:calc(100vw - 60px) !important}
-
-        .previewBox.pv-zoom svg{width:var(--pvw);height:auto;max-width:none;max-height:none;display:block}
-        @media (prefers-reduced-motion: reduce){ svg *{animation-duration:0.01s !important} }
-      `), React.createElement("header", {
-    className: "vc-chrome",
-    style: S.header
-  }, React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "baseline",
-      gap: 12,
-      flexWrap: "wrap"
-    }
-  }, React.createElement("span", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 9
-    }
-  }, React.createElement(LogoMark, {
-    size: 26
-  }), React.createElement("span", {
-    style: S.logo
-  }, "Vectimo"), React.createElement("span", {
-    style: {
-      fontSize: 10.5,
-      color: "#5C6373",
-      letterSpacing: "0.06em",
-      marginTop: 4
-    }
-  }, "SVG MOTION STUDIO")), React.createElement("span", {
-    style: S.sub
-  }, "\u8907\u6570SVG \u2192 1\u672C\u306E\u52D5\u753B")), React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 8,
-      alignItems: "center"
-    }
-  }, React.createElement("span", {
-    style: {
-      display: "flex",
-      gap: 2
-    }
-  }, React.createElement("button", {
-    className: "btn",
-    style: S.iconBtn,
-    onClick: undo,
-    title: "\u5143\u306B\u623B\u3059\uFF08Ctrl+Z\uFF09"
-  }, React.createElement(Icon, {
-    name: "undo",
-    size: 16
-  })), React.createElement("button", {
-    className: "btn",
-    style: S.iconBtn,
-    onClick: redo,
-    title: "\u3084\u308A\u76F4\u3059\uFF08Ctrl+Shift+Z\uFF09"
-  }, React.createElement(Icon, {
-    name: "redo",
-    size: 16
-  })), React.createElement("button", {
-    className: "btn",
-    style: S.iconBtn,
-    onClick: () => setLightMode(v => !v),
-    title: lightMode ? "ダークモードに切替" : "ライトモードに切替"
-  }, lightMode ? "🌙" : "☀")), React.createElement("span", {
-    style: {
-      position: "relative"
-    }
-  }, React.createElement("button", {
-    className: "btn",
-    style: S.ghostBtn,
-    onClick: () => setFileMenu(v => !v)
-  }, React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 6
-    }
-  }, React.createElement(Icon, {
-    name: "menu"
-  }), "\u30E1\u30CB\u30E5\u30FC \u25BE")), fileMenu && React.createElement(React.Fragment, null, React.createElement("div", {
-    style: {
-      position: "fixed",
-      inset: 0,
-      zIndex: 30
-    },
-    onClick: () => setFileMenu(false)
-  }), React.createElement("div", {
-    className: "vc-menu",
-    style: {
-      position: "absolute",
-      right: 0,
-      top: "calc(100% + 6px)",
-      zIndex: 31,
-      background: "#1D2129",
-      border: "1px solid #333A4A",
-      borderRadius: 10,
-      padding: 6,
-      minWidth: 200,
-      boxShadow: "0 12px 40px #000A"
-    }
-  }, React.createElement("div", {
-    style: S.menuLabel
-  }, "\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8"), React.createElement("button", {
-    className: "ctxItem",
-    onClick: () => {
-      saveProject(false);
-      setFileMenu(false);
-    }
-  }, React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 8
-    }
-  }, React.createElement(Icon, {
-    name: "save"
-  }), "\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u3092\u4FDD\u5B58\uFF08\u8EFD\u91CF\uFF09")), React.createElement("button", {
-    className: "ctxItem",
-    onClick: () => {
-      saveProject(true);
-      setFileMenu(false);
-    }
-  }, React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 8
-    }
-  }, React.createElement(Icon, {
-    name: "save"
-  }), "\u7D20\u6750\u3054\u3068\u4FDD\u5B58\uFF081\u30D5\u30A1\u30A4\u30EB\u5B8C\u7D50\uFF09")), React.createElement("button", {
-    className: "ctxItem",
-    onClick: () => {
-      projRef.current?.click();
-      setFileMenu(false);
-    }
-  }, React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 8
-    }
-  }, React.createElement(Icon, {
-    name: "folder"
-  }), "\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u3092\u958B\u304F")), React.createElement("div", {
-    style: {
-      borderTop: "1px solid #262B38",
-      margin: "5px 0"
-    }
-  }), React.createElement("div", {
-    style: S.menuLabel
-  }, "CSV\u5165\u7A3F"), React.createElement("button", {
-    className: "ctxItem",
-    onClick: () => {
-      exportCsvTemplate();
-      setFileMenu(false);
-    }
-  }, React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 8
-    }
-  }, React.createElement(Icon, {
-    name: "csvOut"
-  }), "CSV\u30C6\u30F3\u30D7\u30EC\u3092\u66F8\u304D\u51FA\u3057")), React.createElement("button", {
-    className: "ctxItem",
-    onClick: () => {
-      csvRef.current?.click();
-      setFileMenu(false);
-    }
-  }, React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 8
-    }
-  }, React.createElement(Icon, {
-    name: "csvIn"
-  }), "CSV\u3092\u53D6\u308A\u8FBC\u307F")), React.createElement("div", {
-    style: {
-      borderTop: "1px solid #262B38",
-      margin: "5px 0"
-    }
-  }), React.createElement("div", {
-    style: S.menuLabel
-  }, "\u3053\u306E\u4ED6"), React.createElement("button", {
-    className: "ctxItem",
-    onClick: () => {
-      setInputOpen(v => !v);
-      setFileMenu(false);
-    }
-  }, React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 8
-    }
-  }, React.createElement(Icon, {
-    name: "code"
-  }), "SVG\u30B3\u30FC\u30C9\u3092\u7DE8\u96C6")), React.createElement("button", {
-    className: "ctxItem",
-    onClick: () => {
-      exportSvg();
-      setFileMenu(false);
-    }
-  }, React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 8
-    }
-  }, React.createElement(Icon, {
-    name: "image"
-  }), "\u3053\u306E\u30B7\u30FC\u30F3\u3092SVG\u66F8\u304D\u51FA\u3057")), React.createElement("button", {
-    className: "ctxItem",
-    onClick: () => {
-      setHintsDone(false);
-      setFileMenu(false);
-    }
-  }, React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 8
-    }
-  }, React.createElement(Icon, {
-    name: "lightbulb",
-    size: 14
-  }), "\u64CD\u4F5C\u30D2\u30F3\u30C8\u3092\u518D\u8868\u793A")), React.createElement("a", {
-    className: "ctxItem",
-    href: "vectimo-guide.html",
-    target: "_blank",
-    rel: "noopener",
-    style: {
-      textDecoration: "none"
-    },
-    onClick: () => setFileMenu(false)
-  }, React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 8
-    }
-  }, React.createElement(Icon, {
-    name: "folder",
-    size: 14
-  }), "\u4F7F\u3044\u65B9\u30AC\u30A4\u30C9\u3092\u958B\u304F"))))), React.createElement("input", {
-    ref: projRef,
-    type: "file",
-    accept: ".json",
-    style: {
-      display: "none"
-    },
-    onChange: loadProject
-  }), React.createElement("input", {
-    ref: csvRef,
-    type: "file",
-    accept: ".csv,text/csv",
-    style: {
-      display: "none"
-    },
-    onChange: importCsv
-  }), React.createElement("button", {
-    className: "btn",
-    style: S.primaryBtn,
-    onClick: () => setSeqOpen(true)
-  }, React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 6
-    }
-  }, React.createElement(Icon, {
-    name: "play"
-  }), "\u5168\u518D\u751F\uFF08", totalVideo.toFixed(1), "s\uFF09")), React.createElement("button", {
-    className: "btn",
-    style: S.exportBtn,
-    onClick: () => setMp4Open(true)
-  }, React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 6
-    }
-  }, React.createElement(Icon, {
-    name: "film"
-  }), "MP4\u66F8\u304D\u51FA\u3057")))), React.createElement("div", {
-    style: S.frameBar
-  }, React.createElement("span", {
-    style: S.frameLabel
-  }, "\u51FA\u529B\u30B5\u30A4\u30BA"), Object.entries(FRAMES).map(([k, v]) => React.createElement("button", {
-    key: k,
-    className: "btn",
-    onClick: () => setFrame(f => ({
-      ...f,
-      ratio: k
-    })),
-    style: {
-      ...S.frameBtn,
-      ...(frame.ratio === k ? S.frameBtnActive : {})
-    }
-  }, v.label)), frame.ratio !== "original" && React.createElement(React.Fragment, null, React.createElement("span", {
-    style: {
-      ...S.frameLabel,
-      marginLeft: 10
-    }
-  }, "\u53CE\u3081\u65B9"), React.createElement("select", {
-    style: S.transSelect,
-    value: frame.fit,
-    onChange: e => setFrame(f => ({
-      ...f,
-      fit: e.target.value
-    }))
-  }, React.createElement("option", {
-    value: "cover"
-  }, "\u5207\u308A\u629C\u304D\uFF08\u30AB\u30D0\u30FC\uFF09"), React.createElement("option", {
-    value: "contain"
-  }, "\u5168\u4F53\u8868\u793A\uFF08\u4F59\u767D\uFF09")), React.createElement("select", {
-    style: S.transSelect,
-    value: frame.align,
-    onChange: e => setFrame(f => ({
-      ...f,
-      align: e.target.value
-    })),
-    title: "\u4F4D\u7F6E"
-  }, Object.entries(ALIGNS).map(([k, v]) => React.createElement("option", {
-    key: k,
-    value: k
-  }, v))), frame.fit === "contain" && React.createElement("label", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 6,
-      fontSize: 11.5,
-      color: "#9AA0AE"
-    }
-  }, "\u4F59\u767D\u8272", React.createElement("input", {
-    type: "color",
-    value: frame.bg,
-    onChange: e => setFrame(f => ({
-      ...f,
-      bg: e.target.value
-    })),
-    style: {
-      width: 26,
-      height: 22,
-      border: "1px solid #333A4A",
-      borderRadius: 5,
-      background: "#1D2129",
-      padding: 1,
-      cursor: "pointer"
-    }
-  })))), React.createElement("div", {
-    style: S.frameBar,
-    onDragOver: e => e.preventDefault(),
-    onDrop: e => {
-      e.preventDefault();
-      const all = Array.from(e.dataTransfer.files || []);
-      const f = all.find(x => x.type.startsWith("audio/"));
-      const bad = all.filter(x => !x.type.startsWith("audio/"));
-      if (bad.length) window.alert(`音声ファイルではないためスキップしました：\n${bad.map(x => x.name).join("\n")}`);
-      if (f) setBgm({
-        src: URL.createObjectURL(f),
-        name: f.name,
-        volume: 0.6,
-        loop: true,
-        fadeIn: 1,
-        fadeOut: 1.5
-      });
-    }
-  }, React.createElement("span", {
-    style: S.frameLabel
-  }, React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 5
-    }
-  }, React.createElement(Icon, {
-    name: "music",
-    size: 13
-  }), "BGM\uFF08\u52D5\u753B\u5168\u4F53\uFF09")), bgm ? React.createElement(React.Fragment, null, React.createElement("span", {
-    style: {
-      fontSize: 11.5,
-      color: "#C9CDD6",
-      maxWidth: 140,
-      overflow: "hidden",
-      textOverflow: "ellipsis",
-      whiteSpace: "nowrap"
-    }
-  }, bgm.name), React.createElement("label", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 4,
-      fontSize: 11,
-      color: "#9AA0AE"
-    }
-  }, "\u97F3\u91CF", React.createElement("input", {
-    type: "range",
-    min: "0",
-    max: "1",
-    step: "0.05",
-    value: bgm.volume,
-    onChange: e => setBgm({
-      ...bgm,
-      volume: +e.target.value
-    }),
-    style: {
-      width: 70
-    }
-  })), React.createElement("label", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 3,
-      fontSize: 11,
-      color: "#9AA0AE"
-    }
-  }, "\u30D5\u30A7\u30FC\u30C9\u30A4\u30F3", React.createElement("input", {
-    type: "number",
-    min: "0",
-    max: "10",
-    step: "0.5",
-    value: bgm.fadeIn,
-    onChange: e => setBgm({
-      ...bgm,
-      fadeIn: Math.max(0, +e.target.value || 0)
-    }),
-    style: S.numInput
-  }), "s"), React.createElement("label", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 3,
-      fontSize: 11,
-      color: "#9AA0AE"
-    }
-  }, "\u30A2\u30A6\u30C8", React.createElement("input", {
-    type: "number",
-    min: "0",
-    max: "10",
-    step: "0.5",
-    value: bgm.fadeOut,
-    onChange: e => setBgm({
-      ...bgm,
-      fadeOut: Math.max(0, +e.target.value || 0)
-    }),
-    style: S.numInput
-  }), "s"), React.createElement("label", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 4,
-      fontSize: 11,
-      color: "#9AA0AE",
-      cursor: "pointer"
-    }
-  }, React.createElement("input", {
-    type: "checkbox",
-    checked: bgm.loop !== false,
-    onChange: e => setBgm({
-      ...bgm,
-      loop: e.target.checked
-    })
-  }), "\u30EB\u30FC\u30D7"), React.createElement("button", {
-    className: "btn",
-    style: {
-      ...S.frameBtn,
-      color: "#FF8FA3"
-    },
-    onClick: () => setBgm(null)
-  }, React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 4
-    }
-  }, React.createElement(Icon, {
-    name: "x",
-    size: 12
-  }), "\u89E3\u9664"))) : React.createElement("button", {
-    className: "btn",
-    style: S.frameBtn,
-    onClick: () => bgmFileRef.current?.click()
-  }, "\uFF0B BGM\u3092\u9078\u629E"), React.createElement("input", {
-    ref: bgmFileRef,
-    type: "file",
-    accept: "audio/*",
-    style: {
-      display: "none"
-    },
-    onChange: e => {
-      const f = e.target.files?.[0];
-      e.target.value = "";
-      if (f) setBgm({
-        src: URL.createObjectURL(f),
-        name: f.name,
-        volume: 0.6,
-        loop: true,
-        fadeIn: 1,
-        fadeOut: 1.5
-      });
-    }
-  }), React.createElement("span", {
-    style: {
-      fontSize: 11.5,
-      color: "#5C6373",
-      marginLeft: 14
-    }
-  }, "\u30B7\u30FC\u30F3\u97F3\u58F0\u306F\u5DE6\u306E\u30D1\u30FC\u30C4\u4E00\u89A7\u306E\u4E0B\u90E8\u304B\u3089\u8FFD\u52A0\u3067\u304D\u307E\u3059\uFF08\u8907\u6570\u53EF\u30FB\u3053\u306E\u30D0\u30FC\u306B\u97F3\u58F0\u3092\u30C9\u30ED\u30C3\u30D7\u3059\u308B\u3068BGM\u306B\u8A2D\u5B9A\uFF09"), React.createElement("input", {
-    ref: audioFileRef,
-    type: "file",
-    accept: "audio/*",
-    multiple: true,
-    style: {
-      display: "none"
-    },
-    onChange: e => {
-      addSceneAudios(e.target.files);
-      e.target.value = "";
-    }
-  })), React.createElement("div", {
-    className: "hbar-noscroll",
-    style: S.sceneStrip,
-    onDragOver: e => e.preventDefault(),
-    onDrop: e => {
-      e.preventDefault();
-      const all = Array.from(e.dataTransfer.files || []);
-      const ok = f => f.type === "image/svg+xml" || /\.(svg|png|jpe?g|webp|gif)$/i.test(f.name) || /^image\//.test(f.type);
-      const good = all.filter(ok);
-      if (good.length) addScenesFromFiles(good);else if (all.length) window.alert(`対応していないファイルです：\n${all.map(f => f.name).join("\n")}\n（SVG・PNG・JPG・WebPに対応）`);
-    }
-  }, scenes.map((s, i) => {
-    const active = s.id === activeId;
-    const thumb = getSceneThumb(s.svgText);
-    return React.createElement("div", {
-      key: s.id,
-      style: {
-        display: "flex",
-        alignItems: "center",
-        gap: 6
-      }
-    }, React.createElement("div", {
-      className: "sceneCard",
-      onClick: () => setActiveId(s.id),
-      draggable: true,
-      onDragStart: e => {
-        dragSceneRef.current = s.id;
-        e.dataTransfer.effectAllowed = "move";
-      },
-      onDragOver: e => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
-      },
-      onDrop: e => {
-        e.preventDefault();
-        const fromId = dragSceneRef.current;
-        if (!fromId || fromId === s.id) return;
-        setScenesH(sc => {
-          const from = sc.findIndex(x => x.id === fromId);
-          const to = sc.findIndex(x => x.id === s.id);
-          if (from < 0 || to < 0) return sc;
-          const next = [...sc];
-          const [moved] = next.splice(from, 1);
-          next.splice(to, 0, moved);
-          return next;
-        });
-        dragSceneRef.current = null;
-      },
-      style: {
-        ...S.sceneCard,
-        borderColor: active ? "#8B7CFF" : "#333A4A",
-        boxShadow: active ? "0 0 0 1px #8B7CFF" : "none"
-      }
-    }, React.createElement("div", {
-      style: S.sceneThumb,
-      dangerouslySetInnerHTML: {
-        __html: thumb
-      }
-    }), React.createElement("div", {
-      style: S.sceneCardBody
-    }, React.createElement("div", {
-      style: S.sceneName,
-      title: s.name
-    }, i + 1, ". ", s.name), React.createElement("div", {
-      style: {
-        display: "flex",
-        alignItems: "center",
-        gap: 4
-      }
-    }, React.createElement("input", {
-      type: "number",
-      min: "0.5",
-      step: "0.5",
-      value: s.duration,
-      onClick: e => e.stopPropagation(),
-      onChange: e => updateScene(s.id, {
-        duration: Math.max(0.3, +e.target.value || 0.3)
-      }),
-      style: S.durInput,
-      "aria-label": "\u30B7\u30FC\u30F3\u306E\u9577\u3055\uFF08\u79D2\uFF09"
-    }), React.createElement("span", {
-      style: {
-        fontSize: 10,
-        color: "#9AA0AE"
-      }
-    }, "\u79D2"))), React.createElement("div", {
-      style: S.sceneOps,
-      onClick: e => e.stopPropagation()
-    }, React.createElement("button", {
-      className: "btn",
-      style: S.miniBtn,
-      onClick: () => moveScene(s.id, -1),
-      title: "\u5DE6\u3078"
-    }, "\u25C0"), React.createElement("button", {
-      className: "btn",
-      style: S.miniBtn,
-      onClick: () => moveScene(s.id, 1),
-      title: "\u53F3\u3078"
-    }, "\u25B6"), React.createElement("button", {
-      className: "btn",
-      style: S.miniBtn,
-      onClick: () => duplicateScene(s.id),
-      title: "\u8907\u88FD"
-    }, "\u29C9"), React.createElement("button", {
-      className: "btn",
-      style: {
-        ...S.miniBtn,
-        color: "#FF8FA3",
-        display: "inline-flex",
-        alignItems: "center"
-      },
-      onClick: () => removeScene(s.id),
-      title: "\u524A\u9664"
-    }, React.createElement(Icon, {
-      name: "x",
-      size: 12
-    })))), i < scenes.length - 1 && React.createElement("select", {
-      value: s.transition.type,
-      onChange: e => updateScene(s.id, {
-        transition: {
-          ...s.transition,
-          type: e.target.value,
-          duration: e.target.value === "cut" ? 0 : s.transition.duration || 0.6
-        }
-      }),
-      style: S.transSelect,
-      title: "\u6B21\u306E\u30B7\u30FC\u30F3\u3078\u306E\u30C8\u30E9\u30F3\u30B8\u30B7\u30E7\u30F3"
-    }, Object.entries(TRANSITIONS).map(([k, v]) => React.createElement("option", {
-      key: k,
-      value: k
-    }, v))));
-  }), React.createElement("button", {
-    className: "btn",
-    style: S.addSceneBtn,
-    onClick: () => fileRef.current?.click()
-  }, "\uFF0B \u7D20\u6750\u3092\u8FFD\u52A0", React.createElement("br", null), React.createElement("span", {
-    style: {
-      fontSize: 10,
-      fontWeight: 400
-    }
-  }, "\uFF08SVG\u30FB\u753B\u50CF\uFF0F\u8907\u6570OK\uFF09")), React.createElement("button", {
-    className: "btn",
-    style: {
-      ...S.miniBtn,
-      color: "#FF8FA3",
-      fontSize: 12,
-      padding: "8px 10px",
-      flexShrink: 0,
-      border: "1px solid #7A3B4A",
-      borderRadius: 8
-    },
-    onClick: () => {
-      if (!window.confirm(`全${scenes.length}シーンを削除します。よろしいですか？（Ctrl+Zで戻せます）`)) return;
-      setScenesH([]);
-      setActiveId(null);
-      setSelected(null);
-    }
-  }, React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 6
-    }
-  }, React.createElement(Icon, {
-    name: "trash",
-    size: 13
-  }), "\u5168\u30B7\u30FC\u30F3\u524A\u9664")), React.createElement("button", {
-    className: "btn",
-    style: {
-      ...S.miniBtn,
-      color: "#5FD6C4",
-      fontSize: 12,
-      padding: "8px 10px",
-      flexShrink: 0,
-      border: "1px solid #2E5B54",
-      borderRadius: 8
-    },
-    onClick: () => setBulkOpen(true)
-  }, React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 6
-    }
-  }, React.createElement(Icon, {
-    name: "layers",
-    size: 13
-  }), "\u30E1\u30C7\u30A3\u30A2\u4E00\u62EC\u5272\u5F53")), React.createElement("input", {
-    ref: fileRef,
-    type: "file",
-    accept: ".svg,image/svg+xml,image/png,image/jpeg,image/webp,image/gif",
-    multiple: true,
-    style: {
-      display: "none"
-    },
-    onChange: e => {
-      addScenesFromFiles(e.target.files);
-      e.target.value = "";
-    }
-  })), inputOpen && scene && React.createElement("div", {
-    style: S.inputPanel
-  }, React.createElement("textarea", {
-    style: S.textarea,
-    value: scene.svgText,
-    spellCheck: false,
-    "aria-label": "SVG\u30B3\u30FC\u30C9",
-    onChange: e => {
-      const text = e.target.value;
-      const p = parseSvg(text);
-      const nextSettings = {};
-      if (p.parts) p.parts.forEach((pt, i) => {
-        nextSettings[pt.uid] = scene.settings[pt.uid] || {
-          ...defaultSetting(),
-          delay: +(i * 0.25).toFixed(2)
-        };
-      });
-      updateScene(scene.id, {
-        svgText: text,
-        settings: nextSettings
-      });
-    }
-  }), React.createElement("p", {
-    style: S.hint
-  }, "\u7DE8\u96C6\u4E2D\u306E\u30B7\u30FC\u30F3\uFF1A", scene.name, "\u3002\u30EC\u30A4\u30E4\u30FC\u306Bid\u540D\u3092\u4ED8\u3051\u308B\u3068\u30D1\u30FC\u30C4\u540D\u3068\u3057\u3066\u8868\u793A\u3055\u308C\u307E\u3059\u3002")), scenes.length === 0 ? React.createElement("div", {
-    style: {
-      flex: 1,
-      display: "grid",
-      placeItems: "center",
-      padding: 40,
-      textAlign: "center"
-    }
-  }, React.createElement("div", null, React.createElement("div", {
-    style: {
-      marginBottom: 16,
-      display: "flex",
-      justifyContent: "center"
-    }
-  }, React.createElement(LogoMark, {
-    size: 52
-  })), React.createElement("div", {
-    style: {
-      fontSize: 16,
-      fontWeight: 700,
-      marginBottom: 8
-    }
-  }, "SVG\u3092\u8FFD\u52A0\u3057\u3066\u59CB\u3081\u307E\u3057\u3087\u3046"), React.createElement("p", {
-    style: {
-      fontSize: 13,
-      color: "#9AA0AE",
-      lineHeight: 1.8,
-      marginBottom: 20
-    }
-  }, "\u300C\uFF0B \u7D20\u6750\u3092\u8FFD\u52A0\u300D\u304B\u3089 ", React.createElement("b", null, "SVG\u30FB\u5199\u771F\uFF08PNG/JPG\uFF09"), " \u30921\u679A\u307E\u305F\u306F\u8907\u6570\u8AAD\u307F\u8FBC\u3080\u3068\u3001", React.createElement("br", null), "\u30B7\u30FC\u30F3\u3068\u3057\u3066\u4E26\u3079\u3066\u30A2\u30CB\u30E1\u30FC\u30B7\u30E7\u30F3\u52D5\u753B\u3092\u4F5C\u308C\u307E\u3059\u3002", React.createElement("br", null), "\u5199\u771F\u306F\u30BA\u30FC\u30E0\u3084\u30D1\u30F3\u3067\u52D5\u304B\u3057\u3066\u3001\u601D\u3044\u51FA\u306E\u30B9\u30E9\u30A4\u30C9\u30B7\u30E7\u30FC\u306B\u3082\u3002", React.createElement("br", null), "\u4FDD\u5B58\u3057\u305F\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\uFF08JSON\uFF09\u306F\u300C\u2630 \u30E1\u30CB\u30E5\u30FC \u2192 \u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u3092\u958B\u304F\u300D\u304B\u3089\u8AAD\u307F\u8FBC\u3081\u307E\u3059\u3002", React.createElement("br", null), React.createElement("a", {
-    href: "vectimo-guide.html",
-    target: "_blank",
-    rel: "noopener",
-    style: {
-      color: "#8B7CFF"
-    }
-  }, "\u4F7F\u3044\u65B9\u30AC\u30A4\u30C9\u3092\u898B\u308B \u2192"), hasAutosave && React.createElement("div", {
-    style: {
-      marginTop: 18
-    }
-  }, React.createElement("button", {
-    className: "btn",
-    onClick: restoreAutosave,
-    style: {
-      background: "linear-gradient(100deg,#2B2350,#1D2129)",
-      border: "1.5px solid #8B7CFF",
-      borderRadius: 10,
-      padding: "11px 22px",
-      cursor: "pointer",
-      color: "#EDEEF2",
-      fontWeight: 700,
-      fontSize: 13.5
-    }
-  }, "\u524D\u56DE\u306E\u4F5C\u696D\u3092\u5FA9\u5143\u3059\u308B"), React.createElement("div", {
-    style: {
-      fontSize: 10.5,
-      color: "#5C6373",
-      marginTop: 6
-    }
-  }, "\u4F5C\u696D\u5185\u5BB9\u306F\u3053\u306E\u30D6\u30E9\u30A6\u30B6\u306B\u81EA\u52D5\u4FDD\u5B58\u3055\u308C\u3066\u3044\u307E\u3059")), React.createElement("div", {
-    style: {
-      marginTop: 22
-    }
-  }, React.createElement("div", {
-    style: {
-      fontSize: 12.5,
-      color: "#9AA0AE",
-      marginBottom: 10
-    }
-  }, "\u2014 \u307E\u305F\u306F\u3001\u30C6\u30F3\u30D7\u30EC\u30FC\u30C8\u304B\u3089\u59CB\u3081\u308B \u2014"), React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 10,
-      justifyContent: "center",
-      flexWrap: "wrap"
-    }
-  }, TEMPLATES.map(t => React.createElement("button", {
-    key: t.id,
-    className: "btn",
-    onClick: () => loadTemplate(t),
-    style: {
-      background: "#1D2129",
-      border: "1px solid #333A4A",
-      borderRadius: 10,
-      padding: "12px 16px",
-      cursor: "pointer",
-      color: "#EDEEF2",
-      textAlign: "left",
-      width: 190
-    }
-  }, React.createElement("div", {
-    style: {
-      fontWeight: 700,
-      fontSize: 13.5,
-      marginBottom: 4
-    }
-  }, t.name), React.createElement("div", {
-    style: {
-      fontSize: 11,
-      color: "#9AA0AE",
-      lineHeight: 1.5
-    }
-  }, t.desc)))))), React.createElement("button", {
-    className: "btn",
-    style: S.primaryBtn,
-    onClick: () => fileRef.current?.click()
-  }, "\uFF0B \u7D20\u6750\u3092\u8FFD\u52A0"))) : parsed.error ? React.createElement("div", {
-    style: S.errorBox
-  }, parsed.error) : React.createElement("div", {
-    className: "vc-main",
-    style: S.main
-  }, React.createElement("aside", {
-    className: "vc-chrome",
-    style: S.leftPanel
-  }, React.createElement("div", {
+  const leftPanelContent = !scene ? null : React.createElement(React.Fragment, null, React.createElement("div", {
     style: S.panelTitle
   }, "\u30D1\u30FC\u30C4\uFF08", parsed.parts.length, "\uFF09", React.createElement("span", {
     style: {
@@ -9522,458 +8574,8 @@ function SvgMotionStudio() {
       fontSize: 12
     },
     onClick: () => audioFileRef.current?.click()
-  }, "\uFF0B \u97F3\u58F0\u3092\u8FFD\u52A0\uFF08\u3053\u3053\u306B\u30C9\u30ED\u30C3\u30D7\u53EF\uFF09")))), React.createElement("section", {
-    className: "col-scroll",
-    style: S.center
-  }, !hintsDone && scene && React.createElement("div", {
-    className: "vc-overlay",
-    style: {
-      margin: "12px 16px 0",
-      background: "linear-gradient(100deg,#1E1B33,#171A22)",
-      border: "1px solid #3B3566",
-      borderRadius: 12,
-      padding: "12px 14px",
-      display: "flex",
-      alignItems: "flex-start",
-      gap: 12
-    }
-  }, React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      color: "#B9A5FF"
-    }
-  }, React.createElement(Icon, {
-    name: "lightbulb",
-    size: 18
-  })), React.createElement("div", {
-    style: {
-      flex: 1,
-      fontSize: 12.5,
-      color: "#C9CDD6",
-      lineHeight: 1.85
-    }
-  }, React.createElement("b", {
-    style: {
-      color: "#EDEEF2"
-    }
-  }, "\u77E5\u3063\u3066\u304A\u304F\u3068\u4FBF\u5229\u306A\u64CD\u4F5C"), React.createElement("div", {
-    style: {
-      display: "flex",
-      flexWrap: "wrap",
-      gap: "2px 16px",
-      marginTop: 3
-    }
-  }, React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 4
-    }
-  }, React.createElement(Icon, {
-    name: "mouse",
-    size: 12
-  }), "\u30D1\u30FC\u30C4\u3092", React.createElement("b", null, "\u30C9\u30E9\u30C3\u30B0\u3067\u79FB\u52D5")), React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 4
-    }
-  }, React.createElement(Icon, {
-    name: "search",
-    size: 12
-  }), React.createElement("b", null, "Ctrl\uFF0B\u30DB\u30A4\u30FC\u30EB"), "\uFF0F\u30D4\u30F3\u30C1\u3067\u62E1\u5927\u7E2E\u5C0F"), React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 4
-    }
-  }, React.createElement(Icon, {
-    name: "copy",
-    size: 12
-  }), "\u30D1\u30FC\u30C4\u3092\u9078\u629E\u3057\u3066", React.createElement("b", null, "\u53F3\u30D1\u30CD\u30EB"), "\u304B\u3089\u52D5\u304D\u306E\u30B3\u30D4\u30FC\u30FB\u4FDD\u5B58"), React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 4
-    }
-  }, React.createElement(Icon, {
-    name: "settings",
-    size: 12
-  }), "\u30BF\u30A4\u30E0\u30E9\u30A4\u30F3\u306E\u30D0\u30FC\u306F", React.createElement("b", null, "\u30C9\u30E9\u30C3\u30B0\u3067\u79FB\u52D5\u30FB\u53F3\u7AEF\u3067\u4F38\u7E2E")), React.createElement("span", null, "\u2922 \u30D7\u30EC\u30D3\u30E5\u30FC\u53F3\u4E0A\u3067", React.createElement("b", null, "\u62E1\u5927\u7DE8\u96C6")))), React.createElement("button", {
-    className: "btn",
-    style: {
-      ...S.ghostBtn,
-      padding: "5px 10px",
-      fontSize: 11.5,
-      flexShrink: 0
-    },
-    onClick: () => setHintsDone(true)
-  }, "\u9589\u3058\u308B")), React.createElement("div", {
-    className: pvZoom === "fit" ? "" : "pv-scroll",
-    style: {
-      ...S.previewWrap,
-      position: "relative"
-    }
-  }, React.createElement("div", {
-    className: "pv-vguide",
-    style: {
-      display: "none",
-      position: "absolute",
-      width: 0,
-      borderLeft: "1.5px dashed #FF5C7A",
-      zIndex: 5,
-      pointerEvents: "none"
-    }
-  }), React.createElement("div", {
-    className: "pv-hguide",
-    style: {
-      display: "none",
-      position: "absolute",
-      height: 0,
-      borderTop: "1.5px dashed #FF5C7A",
-      zIndex: 5,
-      pointerEvents: "none"
-    }
-  }), !pvModal && scene && React.createElement("button", {
-    className: "btn",
-    title: "\u62E1\u5927\u3057\u3066\u7DE8\u96C6\uFF08\u5927\u304D\u3044\u753B\u9762\u3067\u4F4D\u7F6E\u30FB\u30B5\u30A4\u30BA\u3092\u8ABF\u6574\uFF09",
-    style: {
-      position: "absolute",
-      top: 10,
-      right: 10,
-      zIndex: 6,
-      background: "#1D2129DD",
-      color: "#C9CDD6",
-      border: "1px solid #333A4A",
-      borderRadius: 8,
-      padding: "6px 10px",
-      cursor: "pointer",
-      fontSize: 14
-    },
-    onClick: () => setPvModal(true)
-  }, React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 5
-    }
-  }, React.createElement(Icon, {
-    name: "expand",
-    size: 14
-  }), "\u62E1\u5927")), !pvModal && selected?.startsWith("p") && React.createElement("div", {
-    style: {
-      position: "absolute",
-      left: 10,
-      bottom: 10,
-      zIndex: 6,
-      background: "#14161CCC",
-      color: "#9AA0AE",
-      border: "1px solid #333A4A",
-      borderRadius: 8,
-      padding: "5px 10px",
-      fontSize: 10.5,
-      pointerEvents: "none",
-      lineHeight: 1.5,
-      backdropFilter: "blur(4px)"
-    }
-  }, "\u30C9\u30E9\u30C3\u30B0\u3067\u79FB\u52D5 \u30FB Ctrl+\u30DB\u30A4\u30FC\u30EB\u3067\u62E1\u5927\u7E2E\u5C0F \u30FB \u53F3\u30AF\u30EA\u30C3\u30AF\u3067\u52D5\u304D\u3092\u30B3\u30D4\u30FC"), !pvModal && previewBoxEl), React.createElement("div", {
-    style: S.controls
-  }, React.createElement("button", {
-    className: "btn",
-    style: S.playBtn,
-    onClick: replay
-  }, React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 6
-    }
-  }, React.createElement(Icon, {
-    name: "play"
-  }), "\u30B7\u30FC\u30F3\u518D\u751F")), React.createElement("button", {
-    className: "btn",
-    style: S.ghostBtn,
-    onClick: () => {
-      setPlaying(false);
-      setSeekT(null);
-      stopLiveAudio();
-    }
-  }, "\u23F9 \u9759\u6B62\u8868\u793A"), React.createElement("span", {
-    style: {
-      display: "flex",
-      gap: 4,
-      alignItems: "center"
-    }
-  }, [["fit", "フィット"], [0.5, "50%"], [1, "100%"], [2, "200%"]].map(([v, l]) => React.createElement("button", {
-    key: l,
-    className: "btn",
-    style: {
-      ...S.frameBtn,
-      ...(pvZoom === v ? S.frameBtnActive : {}),
-      padding: "4px 8px",
-      fontSize: 11
-    },
-    onClick: () => setPvZoom(v)
-  }, l))), React.createElement("select", {
-    style: {
-      ...S.select,
-      padding: "6px 8px",
-      fontSize: 12
-    },
-    value: presetKey,
-    onChange: e => setPresetKey(e.target.value)
-  }, Object.entries(PRESETS).map(([k, v]) => React.createElement("option", {
-    key: k,
-    value: k
-  }, v.label))), React.createElement("button", {
-    className: "btn",
-    style: {
-      ...S.ghostBtn,
-      fontSize: 12
-    },
-    onClick: () => applyPreset(false)
-  }, "\u3053\u306E\u30B7\u30FC\u30F3\u306B\u9069\u7528"), React.createElement("button", {
-    className: "btn",
-    style: {
-      ...S.ghostBtn,
-      fontSize: 12
-    },
-    onClick: () => applyPreset(true)
-  }, "\u5168\u30B7\u30FC\u30F3\u306B\u9069\u7528"), React.createElement("span", {
-    style: S.durLabel
-  }, seekT !== null ? `⏸ ${seekT.toFixed(2)}s` : `登場：${sceneAnimEnd.toFixed(2)}s`, " \uFF0F \u30B7\u30FC\u30F3\u9577\uFF1A", React.createElement("b", {
-    style: {
-      color: "#EDEEF2"
-    }
-  }, scene.duration, "s"))), React.createElement("div", {
-    style: {
-      ...S.timeline,
-      position: "relative"
-    }
-  }, React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center"
-    }
-  }, React.createElement("div", {
-    style: S.panelTitle
-  }, "\u30BF\u30A4\u30E0\u30E9\u30A4\u30F3\uFF08\u3053\u306E\u30B7\u30FC\u30F3\uFF09\u3000", React.createElement("span", {
-    style: {
-      fontWeight: 400,
-      color: "#5C6373"
-    }
-  }, "\u30D0\u30FC\u3092\u30C9\u30E9\u30C3\u30B0\u3067\u79FB\u52D5\uFF0F\u53F3\u7AEF\u3067\u4F38\u7E2E\u30FB\u7A7A\u304D\u3092\u30AF\u30EA\u30C3\u30AF\u3067\u30B8\u30E3\u30F3\u30D7")), React.createElement("span", {
-    style: {
-      marginLeft: "auto",
-      display: "flex",
-      alignItems: "center",
-      gap: 6,
-      padding: "0 14px",
-      fontSize: 13,
-      color: "#9AA0AE",
-      userSelect: "none"
-    }
-  }, React.createElement(Icon, {
-    name: "minus",
-    size: 14,
-    style: {
-      color: "#9AA0AE"
-    }
-  }), React.createElement("input", {
-    type: "range",
-    min: "1",
-    max: "6",
-    step: "0.5",
-    value: tlZoom,
-    onChange: e => setTlZoom(+e.target.value),
-    style: {
-      width: 110
-    },
-    title: "\u30BF\u30A4\u30E0\u30E9\u30A4\u30F3\u62E1\u5927"
-  }), React.createElement(Icon, {
-    name: "plus",
-    size: 14,
-    style: {
-      color: "#9AA0AE"
-    }
-  }))), React.createElement("div", {
-    className: "pv-scroll",
-    style: {
-      overflow: "auto",
-      maxHeight: 240
-    }
-  }, React.createElement("div", {
-    style: {
-      width: `${tlZoom * 100}%`,
-      minWidth: "100%",
-      position: "relative",
-      paddingBottom: 4
-    },
-    onClick: e => {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const trackLeft = rect.left + 150,
-        trackW = rect.width - 162;
-      const frac = (e.clientX - trackLeft) / trackW;
-      if (frac >= 0 && frac <= 1) {
-        setPlaying(true);
-        setSeekT(+(frac * tlMax).toFixed(2));
-      }
-    }
-  }, React.createElement("div", {
-    style: {
-      position: "absolute",
-      top: 18,
-      bottom: 0,
-      left: `calc(150px + (100% - 162px) * ${Math.min(1, headT / tlMax)})`,
-      width: 2,
-      background: "#FF5C7A",
-      zIndex: 2,
-      pointerEvents: "none"
-    }
-  }), React.createElement("div", {
-    style: {
-      position: "relative",
-      padding: "3px 0 2px",
-      height: 16
-    }
-  }, [0, 0.25, 0.5, 0.75, 1].map(f => React.createElement("span", {
-    key: f,
-    style: {
-      ...S.tick,
-      left: `calc(150px + (100% - 162px) * ${f})`
-    }
-  }, (tlMax * f).toFixed(1), "s"))), bgm?.src && React.createElement(AudioTrackRow, {
-    label: "BGM",
-    src: bgm.src,
-    tlMax: tlMax,
-    mode: "bgm",
-    sceneStart: sceneStart
-  }), getSceneAudios(scene).map((au, ai) => React.createElement(AudioTrackRow, {
-    key: au.id || ai,
-    label: `${(au.name || "音声").slice(0, 9)}`,
-    src: au.src,
-    tlMax: tlMax,
-    mode: "scene",
-    delay: au.delay || 0,
-    speed: au.speed || 1,
-    start: au.start || 0,
-    end: au.end || 0,
-    onSelect: () => setSelected(`au${ai}`),
-    onDragDelay: nd => {
-      const next = getSceneAudios(scene).map((x, j) => j === ai ? {
-        ...x,
-        delay: nd
-      } : x);
-      updateScene(scene.id, {
-        audios: next,
-        audio: null
-      });
-    }
-  })), (scene.overlays || []).map((o, oi) => {
-    const left = (o.delay || 0) / tlMax * 100;
-    const width = o.anim === "none" ? 0 : Math.min(o.duration || 0.6, tlMax) / tlMax * 100;
-    return React.createElement("div", {
-      key: `tlov${oi}`,
-      style: {
-        ...S.tlRow,
-        background: selected === `ov${oi}` ? "#232838" : "transparent",
-        borderRadius: 6
-      },
-      onClick: e => {
-        e.stopPropagation();
-        setSelected(`ov${oi}`);
-      }
-    }, React.createElement("span", {
-      style: {
-        ...S.tlName,
-        color: selected === `ov${oi}` ? "#EDEEF2" : "#5FD6C4"
-      }
-    }, React.createElement("span", {
-      style: {
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 4
-      }
-    }, React.createElement(Icon, {
-      name: "telop",
-      size: 11
-    }), o.text.slice(0, 7))), React.createElement("div", {
-      style: S.tlTrack
-    }, o.anim !== "none" && React.createElement(TlBar, {
-      left: left,
-      width: width,
-      color: "#5FD6C4",
-      loop: false,
-      resizable: true,
-      tlMax: tlMax,
-      title: `${o.delay || 0}s → ${((o.delay || 0) + (o.duration || 0.6)).toFixed(2)}s`,
-      onSelect: () => setSelected(`ov${oi}`),
-      onCommit: patch => {
-        const next = scene.overlays.map((x, j) => j === oi ? {
-          ...x,
-          ...patch
-        } : x);
-        updateScene(scene.id, {
-          overlays: next
-        });
-      }
-    }), o.exitFade && React.createElement("div", {
-      style: {
-        ...S.tlBar,
-        left: `${Math.max(0, (tlMax - 0.5) / tlMax * 100)}%`,
-        width: `${0.5 / tlMax * 100}%`,
-        background: "repeating-linear-gradient(45deg,#5FD6C4,#5FD6C4 4px,#5FD6C466 4px,#5FD6C466 8px)",
-        pointerEvents: "none"
-      },
-      title: "\u9000\u5834\u30D5\u30A7\u30FC\u30C9"
-    })));
-  }), parsed.parts.map((p, i) => {
-    const s = settings[p.uid];
-    if (!s) return null;
-    const loop = isLoop(s);
-    const left = s.delay / tlMax * 100;
-    const width = s.type === "none" ? 0 : Math.min(s.duration, tlMax) / tlMax * 100;
-    return React.createElement("div", {
-      key: p.uid,
-      style: {
-        ...S.tlRow,
-        background: selected === p.uid ? "#232838" : "transparent",
-        borderRadius: 6
-      },
-      onClick: e => {
-        e.stopPropagation();
-        setSelected(p.uid);
-      }
-    }, React.createElement("span", {
-      style: {
-        ...S.tlName,
-        color: selected === p.uid ? "#EDEEF2" : "#9AA0AE"
-      }
-    }, React.createElement(PartThumb, {
-      svgText: scene.svgText,
-      uid: p.uid
-    }), React.createElement("span", {
-      style: {
-        overflow: "hidden",
-        textOverflow: "ellipsis"
-      }
-    }, p.name)), React.createElement("div", {
-      style: S.tlTrack
-    }, s.type !== "none" && React.createElement(TlBar, {
-      left: left,
-      width: width,
-      loop: loop,
-      resizable: !loop,
-      tlMax: tlMax,
-      color: loop ? `repeating-linear-gradient(45deg, ${PART_COLORS[i % 8]}, ${PART_COLORS[i % 8]} 6px, ${PART_COLORS[i % 8]}66 6px, ${PART_COLORS[i % 8]}66 12px)` : PART_COLORS[i % 8],
-      title: loop ? "ループ（ドラッグで開始位置）" : `${s.delay}s → ${(s.delay + s.duration).toFixed(2)}s`,
-      onSelect: () => setSelected(p.uid),
-      onCommit: patch => update(p.uid, patch)
-    })));
-  }))))), React.createElement("aside", {
-    className: "col-scroll vc-chrome",
-    style: S.rightPanel
-  }, React.createElement("div", {
+  }, "\uFF0B \u97F3\u58F0\u3092\u8FFD\u52A0\uFF08\u3053\u3053\u306B\u30C9\u30ED\u30C3\u30D7\u53EF\uFF09"))));
+  const rightPanelContent = !scene ? null : React.createElement(React.Fragment, null, React.createElement("div", {
     style: S.panelTitle
   }, "\u30A2\u30CB\u30E1\u30FC\u30B7\u30E7\u30F3\u8A2D\u5B9A"), selected?.startsWith("au") && getSceneAudios(scene)[+selected.slice(2)] ? (() => {
     const ai = +selected.slice(2);
@@ -11294,7 +9896,1407 @@ function SvgMotionStudio() {
     onClick: replay
   }, "\u25B6 \u3053\u306E\u8A2D\u5B9A\u3067\u518D\u751F")) : React.createElement("p", {
     style: S.hint
-  }, "\u5DE6\u306E\u30EA\u30B9\u30C8\u304B\u3089\u30D1\u30FC\u30C4\u3092\u9078\u3093\u3067\u304F\u3060\u3055\u3044\u3002"))), pvModal && React.createElement("div", {
+  }, "\u5DE6\u306E\u30EA\u30B9\u30C8\u304B\u3089\u30D1\u30FC\u30C4\u3092\u9078\u3093\u3067\u304F\u3060\u3055\u3044\u3002"));
+  return React.createElement("div", {
+    style: S.app
+  }, React.createElement("style", null, `
+        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Noto+Sans+JP:wght@700&family=Noto+Serif+JP:wght@700&family=M+PLUS+Rounded+1c:wght@700&family=Klee+One:wght@600&display=swap');
+        *{box-sizing:border-box} ::selection{background:#8B7CFF55}
+        input,select,button,textarea{font-family:inherit}
+        input[type=range]{accent-color:#8B7CFF}
+        /* --- マイクロインタラクション：滑らかな状態遷移 --- */
+        .btn{transition:filter .15s ease, background-color .15s ease, border-color .15s ease, transform .1s ease, box-shadow .15s ease}
+        .btn:hover{filter:brightness(1.15)}
+        .btn:active{transform:translateY(1px) scale(0.98)}
+        .partRow{transition:background-color .15s ease, border-color .15s ease}
+        .partRow:hover{background:#262B38 !important}
+        .btn:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid #8B7CFF;outline-offset:2px}
+        select,input,textarea{transition:border-color .15s ease, box-shadow .15s ease}
+        select:hover,input:hover,textarea:hover{border-color:#4A5266}
+        input:focus,select:focus,textarea:focus{border-color:#8B7CFF;box-shadow:0 0 0 3px #8B7CFF22}
+        .sceneCard{transition:border-color .18s ease, transform .18s ease, box-shadow .18s ease}
+        .sceneCard:hover{border-color:#8B7CFF88 !important;transform:translateY(-2px);box-shadow:0 6px 20px #0006}
+        .sceneCard svg{width:100%;height:auto;display:block}
+        .ctxItem{display:block;width:100%;text-align:left;background:none;border:none;color:#EDEEF2;font-size:13px;padding:7px 10px;border-radius:6px;cursor:pointer;font-family:inherit;transition:background-color .12s ease}
+        .ctxItem:hover:not(:disabled){background:#2A2F40}
+        .ctxItem:disabled{cursor:default}
+        /* トースト・メニュー・モーダルの出入り */
+        @keyframes vcToastIn{from{opacity:0;transform:translate(-50%,12px)}to{opacity:1;transform:translate(-50%,0)}}
+        @keyframes vcMenuIn{from{opacity:0;transform:translateY(-6px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+        @keyframes vcFadeIn{from{opacity:0}to{opacity:1}}
+        @keyframes vcModalIn{from{opacity:0;transform:scale(.97) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
+        .vc-toast{animation:vcToastIn .28s cubic-bezier(.2,.9,.3,1.2) both}
+        .vc-menu{animation:vcMenuIn .16s ease both;transform-origin:top}
+        .vc-overlay{animation:vcFadeIn .18s ease both}
+        .vc-modal{animation:vcModalIn .24s cubic-bezier(.2,.8,.3,1) both}
+        /* 選択パーツのハイライトを呼吸させる */
+        @keyframes vcSelPulse{0%,100%{opacity:.55}50%{opacity:1}}
+        /* アニメ・ホバープレビュー（小さな四角で動きを再現） */
+        .animChip{position:relative;overflow:hidden;cursor:pointer;user-select:none}
+        .animChip .apreview{position:absolute;inset:0;display:grid;place-items:center;background:#14161C;opacity:0;pointer-events:none;transition:opacity .12s}
+        .animChip:hover .apreview{opacity:1}
+        .animChip .adot{width:16px;height:12px;border-radius:2px;background:linear-gradient(135deg,#8B7CFF,#5FD6C4)}
+        .animChip:hover .adot{animation:var(--akf) 1.1s ease infinite}
+        @keyframes apFade{0%{opacity:0}50%,100%{opacity:1}}
+        @keyframes apSlideUp{0%{transform:translateY(10px);opacity:0}50%,100%{transform:translateY(0);opacity:1}}
+        @keyframes apSlideDown{0%{transform:translateY(-10px);opacity:0}50%,100%{transform:translateY(0);opacity:1}}
+        @keyframes apSlideLeft{0%{transform:translateX(12px);opacity:0}50%,100%{transform:translateX(0);opacity:1}}
+        @keyframes apSlideRight{0%{transform:translateX(-12px);opacity:0}50%,100%{transform:translateX(0);opacity:1}}
+        @keyframes apZoom{0%{transform:scale(.4);opacity:0}50%,100%{transform:scale(1);opacity:1}}
+        @keyframes apPop{0%{transform:scale(0)}60%{transform:scale(1.25)}80%{transform:scale(.92)}100%{transform:scale(1)}}
+        @keyframes apRotate{0%{transform:rotate(-180deg) scale(.5);opacity:0}60%,100%{transform:rotate(0) scale(1);opacity:1}}
+        @keyframes apFloat{0%,100%{transform:translateY(-3px)}50%{transform:translateY(3px)}}
+        @keyframes apPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.3)}}
+        @keyframes apSpin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+        @keyframes apShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+        @keyframes apBlink{0%,49%,100%{opacity:1}50%,99%{opacity:.15}}
+        @keyframes apHeart{0%,100%{transform:scale(1)}15%{transform:scale(1.3)}30%{transform:scale(1)}45%{transform:scale(1.2)}}
+        @keyframes apStamp{0%{transform:scale(2.2);opacity:0}55%{transform:scale(.9);opacity:1}70%{transform:scale(1.05)}100%{transform:scale(1)}}
+        @keyframes apPan{0%{transform:translateX(-6px) scale(1.2)}100%{transform:translateX(6px) scale(1.2)}}
+        @keyframes apPathArc{0%{transform:translate(-8px,0)}50%{transform:translate(-2px,-8px)}100%{transform:translate(0,0)}}
+        @media (prefers-reduced-motion: reduce){*{animation-duration:.001ms !important;transition-duration:.001ms !important}}
+        /* --- ライトモード：全体の配色を反転。実際の色が必要な要素（プレビュー・サムネ・画像・動画・色選択）だけ再反転して実色を維持 --- */
+        html.vc-light{background:#EAEAF0}
+        html.vc-light body{filter:invert(1) hue-rotate(180deg)}
+        html.vc-light .previewBox{filter:invert(1) hue-rotate(180deg)}
+        html.vc-light .previewBox *{filter:none}
+        html.vc-light .sceneCard svg{filter:invert(1) hue-rotate(180deg)}
+        html.vc-light img{filter:invert(1) hue-rotate(180deg)}
+        html.vc-light video{filter:invert(1) hue-rotate(180deg)}
+        html.vc-light input[type=color]{filter:invert(1) hue-rotate(180deg)}
+        html.vc-light .vc-brand{filter:invert(1) hue-rotate(180deg)}
+        html.vc-light .vc-truecolor{filter:invert(1) hue-rotate(180deg)}
+        html.vc-light ::selection{background:#8B7CFF55}
+        /* --- レスポンシブ（900px未満：3カラムを縦積みにして閲覧可能に） --- */
+        @media (max-width: 900px){
+          .vc-main{display:flex !important;flex-direction:column !important;overflow-y:auto !important}
+          .vc-main > *{width:100% !important;max-width:100% !important;border-left:none !important;border-right:none !important;border-bottom:1px solid #262B38}
+          .col-scroll{max-height:none !important;overflow:visible !important}
+          body, #root > div{height:auto !important;min-height:100vh;overflow:auto !important}
+          header{position:sticky;top:0;z-index:20;background:#14161C}
+        }
+        .col-scroll{overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none}
+        .col-scroll::-webkit-scrollbar{display:none}
+        .hbar-noscroll::-webkit-scrollbar{display:none}
+        .pv-scroll{overflow:auto;scrollbar-width:none;-ms-overflow-style:none}
+        .pv-scroll::-webkit-scrollbar{display:none}
+        .previewBox{display:grid;place-items:center}
+        .previewBox.pv-fit svg{width:auto;height:auto;max-width:100%;max-height:100%;display:block}
+        .pv-modal .previewBox{max-height:100%}
+        .pv-modal .previewBox svg{max-height:calc(100vh - 110px) !important;max-width:calc(100vw - 60px) !important}
+
+        .previewBox.pv-zoom svg{width:var(--pvw);height:auto;max-width:none;max-height:none;display:block}
+        @media (prefers-reduced-motion: reduce){ svg *{animation-duration:0.01s !important} }
+      `), React.createElement("header", {
+    className: "vc-chrome",
+    style: S.header
+  }, React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "baseline",
+      gap: 12,
+      flexWrap: "wrap"
+    }
+  }, React.createElement("span", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 9
+    }
+  }, React.createElement(LogoMark, {
+    size: 26
+  }), React.createElement("span", {
+    style: S.logo
+  }, "Vectimo"), React.createElement("span", {
+    style: {
+      fontSize: 10.5,
+      color: "#5C6373",
+      letterSpacing: "0.06em",
+      marginTop: 4
+    }
+  }, "SVG MOTION STUDIO")), React.createElement("span", {
+    style: S.sub
+  }, "\u8907\u6570SVG \u2192 1\u672C\u306E\u52D5\u753B")), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      alignItems: "center"
+    }
+  }, React.createElement("span", {
+    style: {
+      display: "flex",
+      gap: 2
+    }
+  }, React.createElement("button", {
+    className: "btn",
+    style: S.iconBtn,
+    onClick: undo,
+    title: "\u5143\u306B\u623B\u3059\uFF08Ctrl+Z\uFF09"
+  }, React.createElement(Icon, {
+    name: "undo",
+    size: 16
+  })), React.createElement("button", {
+    className: "btn",
+    style: S.iconBtn,
+    onClick: redo,
+    title: "\u3084\u308A\u76F4\u3059\uFF08Ctrl+Shift+Z\uFF09"
+  }, React.createElement(Icon, {
+    name: "redo",
+    size: 16
+  })), React.createElement("button", {
+    className: "btn",
+    style: S.iconBtn,
+    onClick: () => setLightMode(v => !v),
+    title: lightMode ? "ダークモードに切替" : "ライトモードに切替"
+  }, lightMode ? "🌙" : "☀")), React.createElement("span", {
+    style: {
+      position: "relative"
+    }
+  }, React.createElement("button", {
+    className: "btn",
+    style: S.ghostBtn,
+    onClick: () => setFileMenu(v => !v)
+  }, React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6
+    }
+  }, React.createElement(Icon, {
+    name: "menu"
+  }), "\u30E1\u30CB\u30E5\u30FC \u25BE")), fileMenu && React.createElement(React.Fragment, null, React.createElement("div", {
+    style: {
+      position: "fixed",
+      inset: 0,
+      zIndex: 30
+    },
+    onClick: () => setFileMenu(false)
+  }), React.createElement("div", {
+    className: "vc-menu",
+    style: {
+      position: "absolute",
+      right: 0,
+      top: "calc(100% + 6px)",
+      zIndex: 31,
+      background: "#1D2129",
+      border: "1px solid #333A4A",
+      borderRadius: 10,
+      padding: 6,
+      minWidth: 200,
+      boxShadow: "0 12px 40px #000A"
+    }
+  }, React.createElement("div", {
+    style: S.menuLabel
+  }, "\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8"), React.createElement("button", {
+    className: "ctxItem",
+    onClick: () => {
+      saveProject(false);
+      setFileMenu(false);
+    }
+  }, React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 8
+    }
+  }, React.createElement(Icon, {
+    name: "save"
+  }), "\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u3092\u4FDD\u5B58\uFF08\u8EFD\u91CF\uFF09")), React.createElement("button", {
+    className: "ctxItem",
+    onClick: () => {
+      saveProject(true);
+      setFileMenu(false);
+    }
+  }, React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 8
+    }
+  }, React.createElement(Icon, {
+    name: "save"
+  }), "\u7D20\u6750\u3054\u3068\u4FDD\u5B58\uFF081\u30D5\u30A1\u30A4\u30EB\u5B8C\u7D50\uFF09")), React.createElement("button", {
+    className: "ctxItem",
+    onClick: () => {
+      projRef.current?.click();
+      setFileMenu(false);
+    }
+  }, React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 8
+    }
+  }, React.createElement(Icon, {
+    name: "folder"
+  }), "\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u3092\u958B\u304F")), React.createElement("div", {
+    style: {
+      borderTop: "1px solid #262B38",
+      margin: "5px 0"
+    }
+  }), React.createElement("div", {
+    style: S.menuLabel
+  }, "CSV\u5165\u7A3F"), React.createElement("button", {
+    className: "ctxItem",
+    onClick: () => {
+      exportCsvTemplate();
+      setFileMenu(false);
+    }
+  }, React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 8
+    }
+  }, React.createElement(Icon, {
+    name: "csvOut"
+  }), "CSV\u30C6\u30F3\u30D7\u30EC\u3092\u66F8\u304D\u51FA\u3057")), React.createElement("button", {
+    className: "ctxItem",
+    onClick: () => {
+      csvRef.current?.click();
+      setFileMenu(false);
+    }
+  }, React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 8
+    }
+  }, React.createElement(Icon, {
+    name: "csvIn"
+  }), "CSV\u3092\u53D6\u308A\u8FBC\u307F")), React.createElement("div", {
+    style: {
+      borderTop: "1px solid #262B38",
+      margin: "5px 0"
+    }
+  }), React.createElement("div", {
+    style: S.menuLabel
+  }, "\u3053\u306E\u4ED6"), React.createElement("button", {
+    className: "ctxItem",
+    onClick: () => {
+      setInputOpen(v => !v);
+      setFileMenu(false);
+    }
+  }, React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 8
+    }
+  }, React.createElement(Icon, {
+    name: "code"
+  }), "SVG\u30B3\u30FC\u30C9\u3092\u7DE8\u96C6")), React.createElement("button", {
+    className: "ctxItem",
+    onClick: () => {
+      exportSvg();
+      setFileMenu(false);
+    }
+  }, React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 8
+    }
+  }, React.createElement(Icon, {
+    name: "image"
+  }), "\u3053\u306E\u30B7\u30FC\u30F3\u3092SVG\u66F8\u304D\u51FA\u3057")), React.createElement("button", {
+    className: "ctxItem",
+    onClick: () => {
+      setHintsDone(false);
+      setFileMenu(false);
+    }
+  }, React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 8
+    }
+  }, React.createElement(Icon, {
+    name: "lightbulb",
+    size: 14
+  }), "\u64CD\u4F5C\u30D2\u30F3\u30C8\u3092\u518D\u8868\u793A")), React.createElement("a", {
+    className: "ctxItem",
+    href: "vectimo-guide.html",
+    target: "_blank",
+    rel: "noopener",
+    style: {
+      textDecoration: "none"
+    },
+    onClick: () => setFileMenu(false)
+  }, React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 8
+    }
+  }, React.createElement(Icon, {
+    name: "folder",
+    size: 14
+  }), "\u4F7F\u3044\u65B9\u30AC\u30A4\u30C9\u3092\u958B\u304F"))))), React.createElement("input", {
+    ref: projRef,
+    type: "file",
+    accept: ".json",
+    style: {
+      display: "none"
+    },
+    onChange: loadProject
+  }), React.createElement("input", {
+    ref: csvRef,
+    type: "file",
+    accept: ".csv,text/csv",
+    style: {
+      display: "none"
+    },
+    onChange: importCsv
+  }), React.createElement("button", {
+    className: "btn",
+    style: S.primaryBtn,
+    onClick: () => setSeqOpen(true)
+  }, React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6
+    }
+  }, React.createElement(Icon, {
+    name: "play"
+  }), "\u5168\u518D\u751F\uFF08", totalVideo.toFixed(1), "s\uFF09")), React.createElement("button", {
+    className: "btn",
+    style: S.exportBtn,
+    onClick: () => setMp4Open(true)
+  }, React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6
+    }
+  }, React.createElement(Icon, {
+    name: "film"
+  }), "MP4\u66F8\u304D\u51FA\u3057")))), React.createElement("div", {
+    style: S.frameBar
+  }, React.createElement("span", {
+    style: S.frameLabel
+  }, "\u51FA\u529B\u30B5\u30A4\u30BA"), Object.entries(FRAMES).map(([k, v]) => React.createElement("button", {
+    key: k,
+    className: "btn",
+    onClick: () => setFrame(f => ({
+      ...f,
+      ratio: k
+    })),
+    style: {
+      ...S.frameBtn,
+      ...(frame.ratio === k ? S.frameBtnActive : {})
+    }
+  }, v.label)), frame.ratio !== "original" && React.createElement(React.Fragment, null, React.createElement("span", {
+    style: {
+      ...S.frameLabel,
+      marginLeft: 10
+    }
+  }, "\u53CE\u3081\u65B9"), React.createElement("select", {
+    style: S.transSelect,
+    value: frame.fit,
+    onChange: e => setFrame(f => ({
+      ...f,
+      fit: e.target.value
+    }))
+  }, React.createElement("option", {
+    value: "cover"
+  }, "\u5207\u308A\u629C\u304D\uFF08\u30AB\u30D0\u30FC\uFF09"), React.createElement("option", {
+    value: "contain"
+  }, "\u5168\u4F53\u8868\u793A\uFF08\u4F59\u767D\uFF09")), React.createElement("select", {
+    style: S.transSelect,
+    value: frame.align,
+    onChange: e => setFrame(f => ({
+      ...f,
+      align: e.target.value
+    })),
+    title: "\u4F4D\u7F6E"
+  }, Object.entries(ALIGNS).map(([k, v]) => React.createElement("option", {
+    key: k,
+    value: k
+  }, v))), frame.fit === "contain" && React.createElement("label", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      fontSize: 11.5,
+      color: "#9AA0AE"
+    }
+  }, "\u4F59\u767D\u8272", React.createElement("input", {
+    type: "color",
+    value: frame.bg,
+    onChange: e => setFrame(f => ({
+      ...f,
+      bg: e.target.value
+    })),
+    style: {
+      width: 26,
+      height: 22,
+      border: "1px solid #333A4A",
+      borderRadius: 5,
+      background: "#1D2129",
+      padding: 1,
+      cursor: "pointer"
+    }
+  })))), React.createElement("div", {
+    style: S.frameBar,
+    onDragOver: e => e.preventDefault(),
+    onDrop: e => {
+      e.preventDefault();
+      const all = Array.from(e.dataTransfer.files || []);
+      const f = all.find(x => x.type.startsWith("audio/"));
+      const bad = all.filter(x => !x.type.startsWith("audio/"));
+      if (bad.length) window.alert(`音声ファイルではないためスキップしました：\n${bad.map(x => x.name).join("\n")}`);
+      if (f) setBgm({
+        src: URL.createObjectURL(f),
+        name: f.name,
+        volume: 0.6,
+        loop: true,
+        fadeIn: 1,
+        fadeOut: 1.5
+      });
+    }
+  }, React.createElement("span", {
+    style: S.frameLabel
+  }, React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 5
+    }
+  }, React.createElement(Icon, {
+    name: "music",
+    size: 13
+  }), "BGM\uFF08\u52D5\u753B\u5168\u4F53\uFF09")), bgm ? React.createElement(React.Fragment, null, React.createElement("span", {
+    style: {
+      fontSize: 11.5,
+      color: "#C9CDD6",
+      maxWidth: 140,
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap"
+    }
+  }, bgm.name), React.createElement("label", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 4,
+      fontSize: 11,
+      color: "#9AA0AE"
+    }
+  }, "\u97F3\u91CF", React.createElement("input", {
+    type: "range",
+    min: "0",
+    max: "1",
+    step: "0.05",
+    value: bgm.volume,
+    onChange: e => setBgm({
+      ...bgm,
+      volume: +e.target.value
+    }),
+    style: {
+      width: 70
+    }
+  })), React.createElement("label", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 3,
+      fontSize: 11,
+      color: "#9AA0AE"
+    }
+  }, "\u30D5\u30A7\u30FC\u30C9\u30A4\u30F3", React.createElement("input", {
+    type: "number",
+    min: "0",
+    max: "10",
+    step: "0.5",
+    value: bgm.fadeIn,
+    onChange: e => setBgm({
+      ...bgm,
+      fadeIn: Math.max(0, +e.target.value || 0)
+    }),
+    style: S.numInput
+  }), "s"), React.createElement("label", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 3,
+      fontSize: 11,
+      color: "#9AA0AE"
+    }
+  }, "\u30A2\u30A6\u30C8", React.createElement("input", {
+    type: "number",
+    min: "0",
+    max: "10",
+    step: "0.5",
+    value: bgm.fadeOut,
+    onChange: e => setBgm({
+      ...bgm,
+      fadeOut: Math.max(0, +e.target.value || 0)
+    }),
+    style: S.numInput
+  }), "s"), React.createElement("label", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 4,
+      fontSize: 11,
+      color: "#9AA0AE",
+      cursor: "pointer"
+    }
+  }, React.createElement("input", {
+    type: "checkbox",
+    checked: bgm.loop !== false,
+    onChange: e => setBgm({
+      ...bgm,
+      loop: e.target.checked
+    })
+  }), "\u30EB\u30FC\u30D7"), React.createElement("button", {
+    className: "btn",
+    style: {
+      ...S.frameBtn,
+      color: "#FF8FA3"
+    },
+    onClick: () => setBgm(null)
+  }, React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 4
+    }
+  }, React.createElement(Icon, {
+    name: "x",
+    size: 12
+  }), "\u89E3\u9664"))) : React.createElement("button", {
+    className: "btn",
+    style: S.frameBtn,
+    onClick: () => bgmFileRef.current?.click()
+  }, "\uFF0B BGM\u3092\u9078\u629E"), React.createElement("input", {
+    ref: bgmFileRef,
+    type: "file",
+    accept: "audio/*",
+    style: {
+      display: "none"
+    },
+    onChange: e => {
+      const f = e.target.files?.[0];
+      e.target.value = "";
+      if (f) setBgm({
+        src: URL.createObjectURL(f),
+        name: f.name,
+        volume: 0.6,
+        loop: true,
+        fadeIn: 1,
+        fadeOut: 1.5
+      });
+    }
+  }), React.createElement("span", {
+    style: {
+      fontSize: 11.5,
+      color: "#5C6373",
+      marginLeft: 14
+    }
+  }, "\u30B7\u30FC\u30F3\u97F3\u58F0\u306F\u5DE6\u306E\u30D1\u30FC\u30C4\u4E00\u89A7\u306E\u4E0B\u90E8\u304B\u3089\u8FFD\u52A0\u3067\u304D\u307E\u3059\uFF08\u8907\u6570\u53EF\u30FB\u3053\u306E\u30D0\u30FC\u306B\u97F3\u58F0\u3092\u30C9\u30ED\u30C3\u30D7\u3059\u308B\u3068BGM\u306B\u8A2D\u5B9A\uFF09"), React.createElement("input", {
+    ref: audioFileRef,
+    type: "file",
+    accept: "audio/*",
+    multiple: true,
+    style: {
+      display: "none"
+    },
+    onChange: e => {
+      addSceneAudios(e.target.files);
+      e.target.value = "";
+    }
+  })), React.createElement("div", {
+    className: "hbar-noscroll",
+    style: S.sceneStrip,
+    onDragOver: e => e.preventDefault(),
+    onDrop: e => {
+      e.preventDefault();
+      const all = Array.from(e.dataTransfer.files || []);
+      const ok = f => f.type === "image/svg+xml" || /\.(svg|png|jpe?g|webp|gif)$/i.test(f.name) || /^image\//.test(f.type);
+      const good = all.filter(ok);
+      if (good.length) addScenesFromFiles(good);else if (all.length) window.alert(`対応していないファイルです：\n${all.map(f => f.name).join("\n")}\n（SVG・PNG・JPG・WebPに対応）`);
+    }
+  }, scenes.map((s, i) => {
+    const active = s.id === activeId;
+    const thumb = getSceneThumb(s.svgText);
+    return React.createElement("div", {
+      key: s.id,
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 6
+      }
+    }, React.createElement("div", {
+      className: "sceneCard",
+      onClick: () => setActiveId(s.id),
+      draggable: true,
+      onDragStart: e => {
+        dragSceneRef.current = s.id;
+        e.dataTransfer.effectAllowed = "move";
+      },
+      onDragOver: e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+      },
+      onDrop: e => {
+        e.preventDefault();
+        const fromId = dragSceneRef.current;
+        if (!fromId || fromId === s.id) return;
+        setScenesH(sc => {
+          const from = sc.findIndex(x => x.id === fromId);
+          const to = sc.findIndex(x => x.id === s.id);
+          if (from < 0 || to < 0) return sc;
+          const next = [...sc];
+          const [moved] = next.splice(from, 1);
+          next.splice(to, 0, moved);
+          return next;
+        });
+        dragSceneRef.current = null;
+      },
+      style: {
+        ...S.sceneCard,
+        borderColor: active ? "#8B7CFF" : "#333A4A",
+        boxShadow: active ? "0 0 0 1px #8B7CFF" : "none"
+      }
+    }, React.createElement("div", {
+      style: S.sceneThumb,
+      dangerouslySetInnerHTML: {
+        __html: thumb
+      }
+    }), React.createElement("div", {
+      style: S.sceneCardBody
+    }, React.createElement("div", {
+      style: S.sceneName,
+      title: s.name
+    }, i + 1, ". ", s.name), React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 4
+      }
+    }, React.createElement("input", {
+      type: "number",
+      min: "0.5",
+      step: "0.5",
+      value: s.duration,
+      onClick: e => e.stopPropagation(),
+      onChange: e => updateScene(s.id, {
+        duration: Math.max(0.3, +e.target.value || 0.3)
+      }),
+      style: S.durInput,
+      "aria-label": "\u30B7\u30FC\u30F3\u306E\u9577\u3055\uFF08\u79D2\uFF09"
+    }), React.createElement("span", {
+      style: {
+        fontSize: 10,
+        color: "#9AA0AE"
+      }
+    }, "\u79D2"))), React.createElement("div", {
+      style: S.sceneOps,
+      onClick: e => e.stopPropagation()
+    }, React.createElement("button", {
+      className: "btn",
+      style: S.miniBtn,
+      onClick: () => moveScene(s.id, -1),
+      title: "\u5DE6\u3078"
+    }, "\u25C0"), React.createElement("button", {
+      className: "btn",
+      style: S.miniBtn,
+      onClick: () => moveScene(s.id, 1),
+      title: "\u53F3\u3078"
+    }, "\u25B6"), React.createElement("button", {
+      className: "btn",
+      style: S.miniBtn,
+      onClick: () => duplicateScene(s.id),
+      title: "\u8907\u88FD"
+    }, "\u29C9"), React.createElement("button", {
+      className: "btn",
+      style: {
+        ...S.miniBtn,
+        color: "#FF8FA3",
+        display: "inline-flex",
+        alignItems: "center"
+      },
+      onClick: () => removeScene(s.id),
+      title: "\u524A\u9664"
+    }, React.createElement(Icon, {
+      name: "x",
+      size: 12
+    })))), i < scenes.length - 1 && React.createElement("select", {
+      value: s.transition.type,
+      onChange: e => updateScene(s.id, {
+        transition: {
+          ...s.transition,
+          type: e.target.value,
+          duration: e.target.value === "cut" ? 0 : s.transition.duration || 0.6
+        }
+      }),
+      style: S.transSelect,
+      title: "\u6B21\u306E\u30B7\u30FC\u30F3\u3078\u306E\u30C8\u30E9\u30F3\u30B8\u30B7\u30E7\u30F3"
+    }, Object.entries(TRANSITIONS).map(([k, v]) => React.createElement("option", {
+      key: k,
+      value: k
+    }, v))));
+  }), React.createElement("button", {
+    className: "btn",
+    style: S.addSceneBtn,
+    onClick: () => fileRef.current?.click()
+  }, "\uFF0B \u7D20\u6750\u3092\u8FFD\u52A0", React.createElement("br", null), React.createElement("span", {
+    style: {
+      fontSize: 10,
+      fontWeight: 400
+    }
+  }, "\uFF08SVG\u30FB\u753B\u50CF\uFF0F\u8907\u6570OK\uFF09")), React.createElement("button", {
+    className: "btn",
+    style: {
+      ...S.miniBtn,
+      color: "#FF8FA3",
+      fontSize: 12,
+      padding: "8px 10px",
+      flexShrink: 0,
+      border: "1px solid #7A3B4A",
+      borderRadius: 8
+    },
+    onClick: () => {
+      if (!window.confirm(`全${scenes.length}シーンを削除します。よろしいですか？（Ctrl+Zで戻せます）`)) return;
+      setScenesH([]);
+      setActiveId(null);
+      setSelected(null);
+    }
+  }, React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6
+    }
+  }, React.createElement(Icon, {
+    name: "trash",
+    size: 13
+  }), "\u5168\u30B7\u30FC\u30F3\u524A\u9664")), React.createElement("button", {
+    className: "btn",
+    style: {
+      ...S.miniBtn,
+      color: "#5FD6C4",
+      fontSize: 12,
+      padding: "8px 10px",
+      flexShrink: 0,
+      border: "1px solid #2E5B54",
+      borderRadius: 8
+    },
+    onClick: () => setBulkOpen(true)
+  }, React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6
+    }
+  }, React.createElement(Icon, {
+    name: "layers",
+    size: 13
+  }), "\u30E1\u30C7\u30A3\u30A2\u4E00\u62EC\u5272\u5F53")), React.createElement("input", {
+    ref: fileRef,
+    type: "file",
+    accept: ".svg,image/svg+xml,image/png,image/jpeg,image/webp,image/gif",
+    multiple: true,
+    style: {
+      display: "none"
+    },
+    onChange: e => {
+      addScenesFromFiles(e.target.files);
+      e.target.value = "";
+    }
+  })), inputOpen && scene && React.createElement("div", {
+    style: S.inputPanel
+  }, React.createElement("textarea", {
+    style: S.textarea,
+    value: scene.svgText,
+    spellCheck: false,
+    "aria-label": "SVG\u30B3\u30FC\u30C9",
+    onChange: e => {
+      const text = e.target.value;
+      const p = parseSvg(text);
+      const nextSettings = {};
+      if (p.parts) p.parts.forEach((pt, i) => {
+        nextSettings[pt.uid] = scene.settings[pt.uid] || {
+          ...defaultSetting(),
+          delay: +(i * 0.25).toFixed(2)
+        };
+      });
+      updateScene(scene.id, {
+        svgText: text,
+        settings: nextSettings
+      });
+    }
+  }), React.createElement("p", {
+    style: S.hint
+  }, "\u7DE8\u96C6\u4E2D\u306E\u30B7\u30FC\u30F3\uFF1A", scene.name, "\u3002\u30EC\u30A4\u30E4\u30FC\u306Bid\u540D\u3092\u4ED8\u3051\u308B\u3068\u30D1\u30FC\u30C4\u540D\u3068\u3057\u3066\u8868\u793A\u3055\u308C\u307E\u3059\u3002")), scenes.length === 0 ? React.createElement("div", {
+    style: {
+      flex: 1,
+      display: "grid",
+      placeItems: "center",
+      padding: 40,
+      textAlign: "center"
+    }
+  }, React.createElement("div", null, React.createElement("div", {
+    style: {
+      marginBottom: 16,
+      display: "flex",
+      justifyContent: "center"
+    }
+  }, React.createElement(LogoMark, {
+    size: 52
+  })), React.createElement("div", {
+    style: {
+      fontSize: 16,
+      fontWeight: 700,
+      marginBottom: 8
+    }
+  }, "SVG\u3092\u8FFD\u52A0\u3057\u3066\u59CB\u3081\u307E\u3057\u3087\u3046"), React.createElement("p", {
+    style: {
+      fontSize: 13,
+      color: "#9AA0AE",
+      lineHeight: 1.8,
+      marginBottom: 20
+    }
+  }, "\u300C\uFF0B \u7D20\u6750\u3092\u8FFD\u52A0\u300D\u304B\u3089 ", React.createElement("b", null, "SVG\u30FB\u5199\u771F\uFF08PNG/JPG\uFF09"), " \u30921\u679A\u307E\u305F\u306F\u8907\u6570\u8AAD\u307F\u8FBC\u3080\u3068\u3001", React.createElement("br", null), "\u30B7\u30FC\u30F3\u3068\u3057\u3066\u4E26\u3079\u3066\u30A2\u30CB\u30E1\u30FC\u30B7\u30E7\u30F3\u52D5\u753B\u3092\u4F5C\u308C\u307E\u3059\u3002", React.createElement("br", null), "\u5199\u771F\u306F\u30BA\u30FC\u30E0\u3084\u30D1\u30F3\u3067\u52D5\u304B\u3057\u3066\u3001\u601D\u3044\u51FA\u306E\u30B9\u30E9\u30A4\u30C9\u30B7\u30E7\u30FC\u306B\u3082\u3002", React.createElement("br", null), "\u4FDD\u5B58\u3057\u305F\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\uFF08JSON\uFF09\u306F\u300C\u2630 \u30E1\u30CB\u30E5\u30FC \u2192 \u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u3092\u958B\u304F\u300D\u304B\u3089\u8AAD\u307F\u8FBC\u3081\u307E\u3059\u3002", React.createElement("br", null), React.createElement("a", {
+    href: "vectimo-guide.html",
+    target: "_blank",
+    rel: "noopener",
+    style: {
+      color: "#8B7CFF"
+    }
+  }, "\u4F7F\u3044\u65B9\u30AC\u30A4\u30C9\u3092\u898B\u308B \u2192"), hasAutosave && React.createElement("div", {
+    style: {
+      marginTop: 18
+    }
+  }, React.createElement("button", {
+    className: "btn",
+    onClick: restoreAutosave,
+    style: {
+      background: "linear-gradient(100deg,#2B2350,#1D2129)",
+      border: "1.5px solid #8B7CFF",
+      borderRadius: 10,
+      padding: "11px 22px",
+      cursor: "pointer",
+      color: "#EDEEF2",
+      fontWeight: 700,
+      fontSize: 13.5
+    }
+  }, "\u524D\u56DE\u306E\u4F5C\u696D\u3092\u5FA9\u5143\u3059\u308B"), React.createElement("div", {
+    style: {
+      fontSize: 10.5,
+      color: "#5C6373",
+      marginTop: 6
+    }
+  }, "\u4F5C\u696D\u5185\u5BB9\u306F\u3053\u306E\u30D6\u30E9\u30A6\u30B6\u306B\u81EA\u52D5\u4FDD\u5B58\u3055\u308C\u3066\u3044\u307E\u3059")), React.createElement("div", {
+    style: {
+      marginTop: 22
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 12.5,
+      color: "#9AA0AE",
+      marginBottom: 10
+    }
+  }, "\u2014 \u307E\u305F\u306F\u3001\u30C6\u30F3\u30D7\u30EC\u30FC\u30C8\u304B\u3089\u59CB\u3081\u308B \u2014"), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 10,
+      justifyContent: "center",
+      flexWrap: "wrap"
+    }
+  }, TEMPLATES.map(t => React.createElement("button", {
+    key: t.id,
+    className: "btn",
+    onClick: () => loadTemplate(t),
+    style: {
+      background: "#1D2129",
+      border: "1px solid #333A4A",
+      borderRadius: 10,
+      padding: "12px 16px",
+      cursor: "pointer",
+      color: "#EDEEF2",
+      textAlign: "left",
+      width: 190
+    }
+  }, React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: 13.5,
+      marginBottom: 4
+    }
+  }, t.name), React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "#9AA0AE",
+      lineHeight: 1.5
+    }
+  }, t.desc)))))), React.createElement("button", {
+    className: "btn",
+    style: S.primaryBtn,
+    onClick: () => fileRef.current?.click()
+  }, "\uFF0B \u7D20\u6750\u3092\u8FFD\u52A0"))) : parsed.error ? React.createElement("div", {
+    style: S.errorBox
+  }, parsed.error) : React.createElement("div", {
+    className: "vc-main",
+    style: S.main
+  }, React.createElement("aside", {
+    className: "vc-chrome",
+    style: S.leftPanel
+  }, leftPanelContent), React.createElement("section", {
+    className: "col-scroll",
+    style: S.center
+  }, !hintsDone && scene && React.createElement("div", {
+    className: "vc-overlay",
+    style: {
+      margin: "12px 16px 0",
+      background: "linear-gradient(100deg,#1E1B33,#171A22)",
+      border: "1px solid #3B3566",
+      borderRadius: 12,
+      padding: "12px 14px",
+      display: "flex",
+      alignItems: "flex-start",
+      gap: 12
+    }
+  }, React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      color: "#B9A5FF"
+    }
+  }, React.createElement(Icon, {
+    name: "lightbulb",
+    size: 18
+  })), React.createElement("div", {
+    style: {
+      flex: 1,
+      fontSize: 12.5,
+      color: "#C9CDD6",
+      lineHeight: 1.85
+    }
+  }, React.createElement("b", {
+    style: {
+      color: "#EDEEF2"
+    }
+  }, "\u77E5\u3063\u3066\u304A\u304F\u3068\u4FBF\u5229\u306A\u64CD\u4F5C"), React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: "2px 16px",
+      marginTop: 3
+    }
+  }, React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 4
+    }
+  }, React.createElement(Icon, {
+    name: "mouse",
+    size: 12
+  }), "\u30D1\u30FC\u30C4\u3092", React.createElement("b", null, "\u30C9\u30E9\u30C3\u30B0\u3067\u79FB\u52D5")), React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 4
+    }
+  }, React.createElement(Icon, {
+    name: "search",
+    size: 12
+  }), React.createElement("b", null, "Ctrl\uFF0B\u30DB\u30A4\u30FC\u30EB"), "\uFF0F\u30D4\u30F3\u30C1\u3067\u62E1\u5927\u7E2E\u5C0F"), React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 4
+    }
+  }, React.createElement(Icon, {
+    name: "copy",
+    size: 12
+  }), "\u30D1\u30FC\u30C4\u3092\u9078\u629E\u3057\u3066", React.createElement("b", null, "\u53F3\u30D1\u30CD\u30EB"), "\u304B\u3089\u52D5\u304D\u306E\u30B3\u30D4\u30FC\u30FB\u4FDD\u5B58"), React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 4
+    }
+  }, React.createElement(Icon, {
+    name: "settings",
+    size: 12
+  }), "\u30BF\u30A4\u30E0\u30E9\u30A4\u30F3\u306E\u30D0\u30FC\u306F", React.createElement("b", null, "\u30C9\u30E9\u30C3\u30B0\u3067\u79FB\u52D5\u30FB\u53F3\u7AEF\u3067\u4F38\u7E2E")), React.createElement("span", null, "\u2922 \u30D7\u30EC\u30D3\u30E5\u30FC\u53F3\u4E0A\u3067", React.createElement("b", null, "\u62E1\u5927\u7DE8\u96C6")))), React.createElement("button", {
+    className: "btn",
+    style: {
+      ...S.ghostBtn,
+      padding: "5px 10px",
+      fontSize: 11.5,
+      flexShrink: 0
+    },
+    onClick: () => setHintsDone(true)
+  }, "\u9589\u3058\u308B")), React.createElement("div", {
+    className: pvZoom === "fit" ? "" : "pv-scroll",
+    style: {
+      ...S.previewWrap,
+      position: "relative"
+    }
+  }, React.createElement("div", {
+    className: "pv-vguide",
+    style: {
+      display: "none",
+      position: "absolute",
+      width: 0,
+      borderLeft: "1.5px dashed #FF5C7A",
+      zIndex: 5,
+      pointerEvents: "none"
+    }
+  }), React.createElement("div", {
+    className: "pv-hguide",
+    style: {
+      display: "none",
+      position: "absolute",
+      height: 0,
+      borderTop: "1.5px dashed #FF5C7A",
+      zIndex: 5,
+      pointerEvents: "none"
+    }
+  }), !pvModal && scene && React.createElement("button", {
+    className: "btn",
+    title: "\u62E1\u5927\u3057\u3066\u7DE8\u96C6\uFF08\u5927\u304D\u3044\u753B\u9762\u3067\u4F4D\u7F6E\u30FB\u30B5\u30A4\u30BA\u3092\u8ABF\u6574\uFF09",
+    style: {
+      position: "absolute",
+      top: 10,
+      right: 10,
+      zIndex: 6,
+      background: "#1D2129DD",
+      color: "#C9CDD6",
+      border: "1px solid #333A4A",
+      borderRadius: 8,
+      padding: "6px 10px",
+      cursor: "pointer",
+      fontSize: 14
+    },
+    onClick: () => setPvModal(true)
+  }, React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 5
+    }
+  }, React.createElement(Icon, {
+    name: "expand",
+    size: 14
+  }), "\u62E1\u5927")), !pvModal && selected?.startsWith("p") && React.createElement("div", {
+    style: {
+      position: "absolute",
+      left: 10,
+      bottom: 10,
+      zIndex: 6,
+      background: "#14161CCC",
+      color: "#9AA0AE",
+      border: "1px solid #333A4A",
+      borderRadius: 8,
+      padding: "5px 10px",
+      fontSize: 10.5,
+      pointerEvents: "none",
+      lineHeight: 1.5,
+      backdropFilter: "blur(4px)"
+    }
+  }, "\u30C9\u30E9\u30C3\u30B0\u3067\u79FB\u52D5 \u30FB Ctrl+\u30DB\u30A4\u30FC\u30EB\u3067\u62E1\u5927\u7E2E\u5C0F \u30FB \u53F3\u30AF\u30EA\u30C3\u30AF\u3067\u52D5\u304D\u3092\u30B3\u30D4\u30FC"), !pvModal && previewBoxEl), React.createElement("div", {
+    style: S.controls
+  }, React.createElement("button", {
+    className: "btn",
+    style: S.playBtn,
+    onClick: replay
+  }, React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6
+    }
+  }, React.createElement(Icon, {
+    name: "play"
+  }), "\u30B7\u30FC\u30F3\u518D\u751F")), React.createElement("button", {
+    className: "btn",
+    style: S.ghostBtn,
+    onClick: () => {
+      setPlaying(false);
+      setSeekT(null);
+      stopLiveAudio();
+    }
+  }, "\u23F9 \u9759\u6B62\u8868\u793A"), React.createElement("span", {
+    style: {
+      display: "flex",
+      gap: 4,
+      alignItems: "center"
+    }
+  }, [["fit", "フィット"], [0.5, "50%"], [1, "100%"], [2, "200%"]].map(([v, l]) => React.createElement("button", {
+    key: l,
+    className: "btn",
+    style: {
+      ...S.frameBtn,
+      ...(pvZoom === v ? S.frameBtnActive : {}),
+      padding: "4px 8px",
+      fontSize: 11
+    },
+    onClick: () => setPvZoom(v)
+  }, l))), React.createElement("select", {
+    style: {
+      ...S.select,
+      padding: "6px 8px",
+      fontSize: 12
+    },
+    value: presetKey,
+    onChange: e => setPresetKey(e.target.value)
+  }, Object.entries(PRESETS).map(([k, v]) => React.createElement("option", {
+    key: k,
+    value: k
+  }, v.label))), React.createElement("button", {
+    className: "btn",
+    style: {
+      ...S.ghostBtn,
+      fontSize: 12
+    },
+    onClick: () => applyPreset(false)
+  }, "\u3053\u306E\u30B7\u30FC\u30F3\u306B\u9069\u7528"), React.createElement("button", {
+    className: "btn",
+    style: {
+      ...S.ghostBtn,
+      fontSize: 12
+    },
+    onClick: () => applyPreset(true)
+  }, "\u5168\u30B7\u30FC\u30F3\u306B\u9069\u7528"), React.createElement("span", {
+    style: S.durLabel
+  }, seekT !== null ? `⏸ ${seekT.toFixed(2)}s` : `登場：${sceneAnimEnd.toFixed(2)}s`, " \uFF0F \u30B7\u30FC\u30F3\u9577\uFF1A", React.createElement("b", {
+    style: {
+      color: "#EDEEF2"
+    }
+  }, scene.duration, "s"))), React.createElement("div", {
+    style: {
+      ...S.timeline,
+      position: "relative"
+    }
+  }, React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center"
+    }
+  }, React.createElement("div", {
+    style: S.panelTitle
+  }, "\u30BF\u30A4\u30E0\u30E9\u30A4\u30F3\uFF08\u3053\u306E\u30B7\u30FC\u30F3\uFF09\u3000", React.createElement("span", {
+    style: {
+      fontWeight: 400,
+      color: "#5C6373"
+    }
+  }, "\u30D0\u30FC\u3092\u30C9\u30E9\u30C3\u30B0\u3067\u79FB\u52D5\uFF0F\u53F3\u7AEF\u3067\u4F38\u7E2E\u30FB\u7A7A\u304D\u3092\u30AF\u30EA\u30C3\u30AF\u3067\u30B8\u30E3\u30F3\u30D7")), React.createElement("span", {
+    style: {
+      marginLeft: "auto",
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      padding: "0 14px",
+      fontSize: 13,
+      color: "#9AA0AE",
+      userSelect: "none"
+    }
+  }, React.createElement(Icon, {
+    name: "minus",
+    size: 14,
+    style: {
+      color: "#9AA0AE"
+    }
+  }), React.createElement("input", {
+    type: "range",
+    min: "1",
+    max: "6",
+    step: "0.5",
+    value: tlZoom,
+    onChange: e => setTlZoom(+e.target.value),
+    style: {
+      width: 110
+    },
+    title: "\u30BF\u30A4\u30E0\u30E9\u30A4\u30F3\u62E1\u5927"
+  }), React.createElement(Icon, {
+    name: "plus",
+    size: 14,
+    style: {
+      color: "#9AA0AE"
+    }
+  }))), React.createElement("div", {
+    className: "pv-scroll",
+    style: {
+      overflow: "auto",
+      maxHeight: 240
+    }
+  }, React.createElement("div", {
+    style: {
+      width: `${tlZoom * 100}%`,
+      minWidth: "100%",
+      position: "relative",
+      paddingBottom: 4
+    },
+    onClick: e => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const trackLeft = rect.left + 150,
+        trackW = rect.width - 162;
+      const frac = (e.clientX - trackLeft) / trackW;
+      if (frac >= 0 && frac <= 1) {
+        setPlaying(true);
+        setSeekT(+(frac * tlMax).toFixed(2));
+      }
+    }
+  }, React.createElement("div", {
+    style: {
+      position: "absolute",
+      top: 18,
+      bottom: 0,
+      left: `calc(150px + (100% - 162px) * ${Math.min(1, headT / tlMax)})`,
+      width: 2,
+      background: "#FF5C7A",
+      zIndex: 2,
+      pointerEvents: "none"
+    }
+  }), React.createElement("div", {
+    style: {
+      position: "relative",
+      padding: "3px 0 2px",
+      height: 16
+    }
+  }, [0, 0.25, 0.5, 0.75, 1].map(f => React.createElement("span", {
+    key: f,
+    style: {
+      ...S.tick,
+      left: `calc(150px + (100% - 162px) * ${f})`
+    }
+  }, (tlMax * f).toFixed(1), "s"))), bgm?.src && React.createElement(AudioTrackRow, {
+    label: "BGM",
+    src: bgm.src,
+    tlMax: tlMax,
+    mode: "bgm",
+    sceneStart: sceneStart
+  }), getSceneAudios(scene).map((au, ai) => React.createElement(AudioTrackRow, {
+    key: au.id || ai,
+    label: `${(au.name || "音声").slice(0, 9)}`,
+    src: au.src,
+    tlMax: tlMax,
+    mode: "scene",
+    delay: au.delay || 0,
+    speed: au.speed || 1,
+    start: au.start || 0,
+    end: au.end || 0,
+    onSelect: () => setSelected(`au${ai}`),
+    onDragDelay: nd => {
+      const next = getSceneAudios(scene).map((x, j) => j === ai ? {
+        ...x,
+        delay: nd
+      } : x);
+      updateScene(scene.id, {
+        audios: next,
+        audio: null
+      });
+    }
+  })), (scene.overlays || []).map((o, oi) => {
+    const left = (o.delay || 0) / tlMax * 100;
+    const width = o.anim === "none" ? 0 : Math.min(o.duration || 0.6, tlMax) / tlMax * 100;
+    return React.createElement("div", {
+      key: `tlov${oi}`,
+      style: {
+        ...S.tlRow,
+        background: selected === `ov${oi}` ? "#232838" : "transparent",
+        borderRadius: 6
+      },
+      onClick: e => {
+        e.stopPropagation();
+        setSelected(`ov${oi}`);
+      }
+    }, React.createElement("span", {
+      style: {
+        ...S.tlName,
+        color: selected === `ov${oi}` ? "#EDEEF2" : "#5FD6C4"
+      }
+    }, React.createElement("span", {
+      style: {
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4
+      }
+    }, React.createElement(Icon, {
+      name: "telop",
+      size: 11
+    }), o.text.slice(0, 7))), React.createElement("div", {
+      style: S.tlTrack
+    }, o.anim !== "none" && React.createElement(TlBar, {
+      left: left,
+      width: width,
+      color: "#5FD6C4",
+      loop: false,
+      resizable: true,
+      tlMax: tlMax,
+      title: `${o.delay || 0}s → ${((o.delay || 0) + (o.duration || 0.6)).toFixed(2)}s`,
+      onSelect: () => setSelected(`ov${oi}`),
+      onCommit: patch => {
+        const next = scene.overlays.map((x, j) => j === oi ? {
+          ...x,
+          ...patch
+        } : x);
+        updateScene(scene.id, {
+          overlays: next
+        });
+      }
+    }), o.exitFade && React.createElement("div", {
+      style: {
+        ...S.tlBar,
+        left: `${Math.max(0, (tlMax - 0.5) / tlMax * 100)}%`,
+        width: `${0.5 / tlMax * 100}%`,
+        background: "repeating-linear-gradient(45deg,#5FD6C4,#5FD6C4 4px,#5FD6C466 4px,#5FD6C466 8px)",
+        pointerEvents: "none"
+      },
+      title: "\u9000\u5834\u30D5\u30A7\u30FC\u30C9"
+    })));
+  }), parsed.parts.map((p, i) => {
+    const s = settings[p.uid];
+    if (!s) return null;
+    const loop = isLoop(s);
+    const left = s.delay / tlMax * 100;
+    const width = s.type === "none" ? 0 : Math.min(s.duration, tlMax) / tlMax * 100;
+    return React.createElement("div", {
+      key: p.uid,
+      style: {
+        ...S.tlRow,
+        background: selected === p.uid ? "#232838" : "transparent",
+        borderRadius: 6
+      },
+      onClick: e => {
+        e.stopPropagation();
+        setSelected(p.uid);
+      }
+    }, React.createElement("span", {
+      style: {
+        ...S.tlName,
+        color: selected === p.uid ? "#EDEEF2" : "#9AA0AE"
+      }
+    }, React.createElement(PartThumb, {
+      svgText: scene.svgText,
+      uid: p.uid
+    }), React.createElement("span", {
+      style: {
+        overflow: "hidden",
+        textOverflow: "ellipsis"
+      }
+    }, p.name)), React.createElement("div", {
+      style: S.tlTrack
+    }, s.type !== "none" && React.createElement(TlBar, {
+      left: left,
+      width: width,
+      loop: loop,
+      resizable: !loop,
+      tlMax: tlMax,
+      color: loop ? `repeating-linear-gradient(45deg, ${PART_COLORS[i % 8]}, ${PART_COLORS[i % 8]} 6px, ${PART_COLORS[i % 8]}66 6px, ${PART_COLORS[i % 8]}66 12px)` : PART_COLORS[i % 8],
+      title: loop ? "ループ（ドラッグで開始位置）" : `${s.delay}s → ${(s.delay + s.duration).toFixed(2)}s`,
+      onSelect: () => setSelected(p.uid),
+      onCommit: patch => update(p.uid, patch)
+    })));
+  }))))), React.createElement("aside", {
+    className: "col-scroll vc-chrome",
+    style: S.rightPanel
+  }, rightPanelContent)), pvModal && React.createElement("div", {
     className: "vc-overlay",
     style: {
       position: "fixed",
@@ -11367,9 +11369,27 @@ function SvgMotionStudio() {
     name: "x",
     size: 16
   })))), React.createElement("div", {
+    style: {
+      flex: 1,
+      minHeight: 0,
+      display: "flex"
+    }
+  }, React.createElement("aside", {
+    className: "col-scroll vc-chrome",
+    style: {
+      ...S.leftPanel,
+      width: 220,
+      flexShrink: 0,
+      background: "#171A22",
+      borderRight: "1px solid #262B38",
+      maxHeight: "100%",
+      overflowY: "auto"
+    }
+  }, leftPanelContent), React.createElement("div", {
     className: "pv-modal",
     style: {
       flex: 1,
+      minWidth: 0,
       minHeight: 0,
       display: "grid",
       placeItems: "center",
@@ -11396,7 +11416,17 @@ function SvgMotionStudio() {
       zIndex: 5,
       pointerEvents: "none"
     }
-  }), previewBoxEl)), seqOpen && React.createElement(SequencePlayer, {
+  }), previewBoxEl), React.createElement("aside", {
+    className: "col-scroll vc-chrome",
+    style: {
+      ...S.rightPanel,
+      width: 300,
+      flexShrink: 0,
+      background: "#171A22",
+      maxHeight: "100%",
+      overflowY: "auto"
+    }
+  }, rightPanelContent))), seqOpen && React.createElement(SequencePlayer, {
     scenes: buildPlayScenes(),
     bgm: bgm,
     frame: frame,
