@@ -5088,6 +5088,35 @@ function addShapeToSvg(svgText, shape, color) {
   if (idx < 0) return svgText;
   return svgText.slice(0, idx) + g + svgText.slice(idx);
 }
+function addImageToSvg(svgText, dataUrl, natW, natH) {
+  const geom = svgGeom(svgText);
+  const vw = geom.vw || 1080,
+    vh = geom.vh || 1080,
+    vx = geom.vx || 0,
+    vy = geom.vy || 0;
+  const targetW = vw * 0.4;
+  const ratio = natW && natH ? natH / natW : 1;
+  const w = targetW,
+    h = targetW * ratio;
+  const x = vx + (vw - w) / 2,
+    y = vy + (vh - h) / 2;
+  const sid = `img${Date.now().toString(36)}${Math.floor(Math.random() * 1000)}`;
+  const f = n => (+n).toFixed(1);
+  const g = `<g data-sid="${sid}"><image href="${dataUrl}" x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" preserveAspectRatio="xMidYMid meet"/></g>`;
+  const parsed = parseSvg(svgText);
+  let useWrapper = false;
+  if (!parsed.error) {
+    const topEls = Array.from(parsed.root.children).filter(el => !["defs", "style", "title", "desc", "metadata"].includes(el.tagName));
+    useWrapper = topEls.length === 1 && topEls[0].tagName === "g";
+  }
+  if (useWrapper) {
+    const gi = svgText.lastIndexOf("</g>");
+    if (gi >= 0) return svgText.slice(0, gi) + g + svgText.slice(gi);
+  }
+  const si = svgText.lastIndexOf("</svg>");
+  if (si < 0) return svgText;
+  return svgText.slice(0, si) + g + svgText.slice(si);
+}
 async function urlToDataUrl(url) {
   if (!url) return "";
   if (url.startsWith("data:")) return url;
@@ -7844,6 +7873,46 @@ function SvgMotionStudio() {
     setSelected(newUid);
     showToast("図形を追加しました（プレビューでドラッグ移動・サイズ変更できます）");
   };
+  const addImagePartRef = useRef(null);
+  const addImagePart = file => {
+    if (!scene) {
+      showToast("先に素材を追加してください");
+      return;
+    }
+    if (!file || !file.type.startsWith("image/")) {
+      showToast("画像ファイルを選んでください");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result);
+      const probe = new Image();
+      probe.onload = () => {
+        const newText = addImageToSvg(scene.svgText, dataUrl, probe.naturalWidth, probe.naturalHeight);
+        const parsedNew = parseSvg(newText);
+        const newUid = `p${parsedNew.children.length - 1}`;
+        const ns = {
+          ...scene.settings,
+          [newUid]: {
+            ...defaultSetting(),
+            type: "fadeIn",
+            duration: 0.6,
+            delay: 0
+          }
+        };
+        setScenesH(sc => sc.map(s => s.id === scene.id ? {
+          ...s,
+          svgText: newText,
+          settings: ns
+        } : s));
+        setSelected(newUid);
+        showToast("画像を追加しました（プレビューでドラッグ移動・拡大縮小できます）");
+      };
+      probe.onerror = () => showToast("画像を読み込めませんでした");
+      probe.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  };
   const update = useCallback((uid, patch) => {
     updateScene(scene.id, {
       settings: {
@@ -8981,7 +9050,35 @@ function SvgMotionStudio() {
   }, React.createElement(ShapeIcon, {
     shape: k,
     size: 18
-  }), label)))), React.createElement("div", {
+  }), label))), React.createElement("button", {
+    className: "btn",
+    style: {
+      ...S.ghostBtn,
+      marginTop: 8,
+      width: "100%",
+      fontSize: 12,
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6
+    },
+    onClick: () => addImagePartRef.current?.click()
+  }, React.createElement(Icon, {
+    name: "image",
+    size: 14
+  }), "\u753B\u50CF\u3092\u8FFD\u52A0\uFF08PNG/JPG\uFF09"), React.createElement("input", {
+    ref: addImagePartRef,
+    type: "file",
+    accept: "image/*",
+    style: {
+      display: "none"
+    },
+    onChange: e => {
+      const f = e.target.files?.[0];
+      if (f) addImagePart(f);
+      e.target.value = "";
+    }
+  })), React.createElement("div", {
     style: {
       ...S.panelTitle,
       borderTop: "1px solid #262B38",
