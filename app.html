@@ -7557,6 +7557,7 @@ function SvgMotionStudio() {
   const [seekT, setSeekT] = useState(null);
   const partResizeRef = useRef(null);
   const previewHostRef = useRef(null);
+  const previewWrapRef = useRef(null);
   const [resizeTick, setResizeTick] = useState(0);
   const [liveT, setLiveT] = useState(0);
   const [presetKey, setPresetKey] = useState("shimen");
@@ -8073,6 +8074,18 @@ function SvgMotionStudio() {
     const id = setTimeout(() => setResizeTick(t => t + 1), 40);
     return () => clearTimeout(id);
   }, [selected, previewSvg, pvZoom, liveT, seekT, activeId]);
+  useEffect(() => {
+    const wrap = previewWrapRef.current;
+    const onUpdate = () => setResizeTick(t => t + 1);
+    wrap && wrap.addEventListener("scroll", onUpdate, {
+      passive: true
+    });
+    window.addEventListener("resize", onUpdate);
+    return () => {
+      wrap && wrap.removeEventListener("scroll", onUpdate);
+      window.removeEventListener("resize", onUpdate);
+    };
+  }, [pvZoom, activeId]);
   const liveRef = useRef({});
   liveRef.current = {
     selected,
@@ -8476,11 +8489,12 @@ function SvgMotionStudio() {
     if (pvModal || !scene || !selected || !selected.startsWith("p")) return null;
     void resizeTick;
     const host = previewHostRef.current;
-    if (!host) return null;
+    const wrap = previewWrapRef.current;
+    if (!host || !wrap) return null;
     const el = host.querySelector(`[data-part="${selected}"]`);
     if (!el || !el.getBoundingClientRect) return null;
     const r = el.getBoundingClientRect();
-    const hr = host.getBoundingClientRect();
+    const hr = wrap.getBoundingClientRect();
     if (!r.width || !r.height) return null;
     const left = r.left - hr.left,
       top = r.top - hr.top;
@@ -11915,6 +11929,7 @@ function SvgMotionStudio() {
     },
     onClick: () => setHintsDone(true)
   }, "\u9589\u3058\u308B")), React.createElement("div", {
+    ref: previewWrapRef,
     className: pvZoom === "fit" ? "" : "pv-scroll",
     style: {
       ...S.previewWrap,
