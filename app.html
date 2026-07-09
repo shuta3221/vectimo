@@ -3754,6 +3754,7 @@ function buildAnimatedSvg(svgText, settings, {
   visibleRange = null,
   sceneDuration = null,
   highlightUid = null,
+  highlightUids = null,
   overlays = null,
   livePlay = false
 } = {}) {
@@ -4092,6 +4093,27 @@ function buildAnimatedSvg(svgText, settings, {
       css += `@keyframes selAnts{to{stroke-dashoffset:-${sw * 14}}}
 .sel-highlight{animation:selAnts 0.8s linear infinite;}`;
     }
+  }
+  if (highlightUids && highlightUids.length && !forExport) {
+    const vbw = hasVB ? viewBox[2] : 800;
+    const sw = Math.max(1.5, vbw / 380);
+    const pad = sw * 2;
+    highlightUids.forEach(uid => {
+      if (uid === highlightUid) return;
+      const hb = measurePartBBox(srcText, uid);
+      if (!hb) return;
+      const r = doc.createElementNS(SVGNS, "rect");
+      r.setAttribute("x", hb.x - pad);
+      r.setAttribute("y", hb.y - pad);
+      r.setAttribute("width", hb.w + pad * 2);
+      r.setAttribute("height", hb.h + pad * 2);
+      r.setAttribute("fill", "none");
+      r.setAttribute("stroke", "#5FD6C4");
+      r.setAttribute("stroke-width", sw);
+      r.setAttribute("rx", sw * 2);
+      r.setAttribute("pointer-events", "none");
+      root.appendChild(r);
+    });
   }
   if (forExport && !root.getAttribute("xmlns")) root.setAttribute("xmlns", "http://www.w3.org/2000/svg");
   if (forExport && hasVB && (!root.getAttribute("width") || !root.getAttribute("height"))) {
@@ -7875,8 +7897,9 @@ function SvgMotionStudio() {
     sceneDuration: scene.duration,
     snapshotT: seekT,
     highlightUid: selected?.startsWith("p") ? selected : null,
+    highlightUids: multiSel,
     overlays: scene.overlays
-  }) : "", [scene?.svgText, settings, playing, playKey, frame, scene?.videoParts, scene?.duration, seekT, selected, scene?.overlays]);
+  }) : "", [scene?.svgText, settings, playing, playKey, frame, scene?.videoParts, scene?.duration, seekT, selected, multiSel, scene?.overlays]);
   const liveRef = useRef({});
   liveRef.current = {
     selected,
@@ -8051,6 +8074,12 @@ function SvgMotionStudio() {
       while (node && node !== e.currentTarget) {
         const dp = node.getAttribute?.("data-part");
         if (dp) {
+          if (e.shiftKey && selected && selected.startsWith("p") && selected !== dp) {
+            setMultiSel(prev => prev.includes(dp) ? prev.filter(u => u !== dp) : [...prev, dp]);
+            e.currentTarget.setPointerCapture?.(e.pointerId);
+            clickGuardRef.current = true;
+            return;
+          }
           const svgOwner = node.ownerSVGElement || e.currentTarget.querySelector("svg");
           const ctm = svgOwner?.getScreenCTM?.();
           if (!ctm) return;
@@ -8086,6 +8115,7 @@ function SvgMotionStudio() {
             wrapEl: e.currentTarget.parentElement
           };
           setSelected(dp);
+          setMultiSel([]);
           e.currentTarget.setPointerCapture(e.pointerId);
           return;
         }
