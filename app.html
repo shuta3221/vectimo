@@ -8134,53 +8134,93 @@ function SvgMotionStudio() {
         const boxCy = pd.box.top + pd.box.height / 2;
         const curXs = [pd.nl0 + dx, pd.nl0 + pd.nw / 2 + dx, pd.nl0 + pd.nw + dx];
         const curYs = [pd.nt0 + dy, pd.nt0 + pd.nh / 2 + dy, pd.nt0 + pd.nh + dy];
-        const candX = [...pd.snapX, boxCx];
-        const candY = [...pd.snapY, boxCy];
-        let bestVX = null,
-          bestVEdge = 0,
-          minVX = SNAP;
-        curXs.forEach((cx, ei) => candX.forEach(s => {
-          const dd = Math.abs(cx - s);
-          if (dd < minVX) {
-            minVX = dd;
-            bestVX = s;
-            bestVEdge = ei;
-          }
-        }));
-        let bestHY = null,
-          bestHEdge = 0,
-          minHY = SNAP;
-        curYs.forEach((cy, ei) => candY.forEach(s => {
-          const dd = Math.abs(cy - s);
-          if (dd < minHY) {
-            minHY = dd;
-            bestHY = s;
-            bestHEdge = ei;
-          }
-        }));
-        if (bestVX !== null) dx += bestVX - curXs[bestVEdge];
-        if (bestHY !== null) dy += bestHY - curYs[bestHEdge];
+        const findSnap = (curs, centerVal, partCands) => {
+          let best = null,
+            bestEdge = 0,
+            minD = SNAP + 1,
+            kind = null;
+          curs.forEach((c, ei) => {
+            const dd = Math.abs(c - centerVal);
+            if (dd < minD) {
+              minD = dd;
+              best = centerVal;
+              bestEdge = ei;
+              kind = "canvas";
+            }
+          });
+          if (best !== null) return {
+            pos: best,
+            edge: bestEdge,
+            kind
+          };
+          minD = SNAP;
+          curs.forEach((c, ei) => partCands.forEach(s => {
+            const dd = Math.abs(c - s);
+            if (dd < minD) {
+              minD = dd;
+              best = s;
+              bestEdge = ei;
+              kind = "part";
+            }
+          }));
+          return best !== null ? {
+            pos: best,
+            edge: bestEdge,
+            kind
+          } : null;
+        };
+        const vSnap = findSnap(curXs, boxCx, pd.snapX);
+        const hSnap = findSnap(curYs, boxCy, pd.snapY);
+        if (vSnap) dx += vSnap.pos - curXs[vSnap.edge];
+        if (hSnap) dy += hSnap.pos - curYs[hSnap.edge];
         const wrap = pd.wrapEl;
         if (wrap) {
           const wr = wrap.getBoundingClientRect();
           const vg = wrap.querySelector(".pv-vguide"),
             hg = wrap.querySelector(".pv-hguide");
-          if (vg) Object.assign(vg.style, bestVX !== null ? {
-            display: "block",
-            left: `${bestVX - wr.left}px`,
-            top: "0px",
-            height: `${wr.height}px`
+          const styleFor = kind => kind === "canvas" ? {
+            borderLeftStyle: "solid",
+            borderLeftWidth: "2px",
+            borderLeftColor: "#5B9DFF",
+            borderTopStyle: "solid",
+            borderTopWidth: "2px",
+            borderTopColor: "#5B9DFF"
           } : {
-            display: "none"
-          });
-          if (hg) Object.assign(hg.style, bestHY !== null ? {
-            display: "block",
-            top: `${bestHY - wr.top}px`,
-            left: "0px",
-            width: `${wr.width}px`
-          } : {
-            display: "none"
-          });
+            borderLeftStyle: "dashed",
+            borderLeftWidth: "1.5px",
+            borderLeftColor: "#FF5C7A",
+            borderTopStyle: "dashed",
+            borderTopWidth: "1.5px",
+            borderTopColor: "#FF5C7A"
+          };
+          if (vg) {
+            if (vSnap) {
+              const st = styleFor(vSnap.kind);
+              Object.assign(vg.style, {
+                display: "block",
+                left: `${vSnap.pos - wr.left}px`,
+                top: "0px",
+                height: `${wr.height}px`,
+                borderLeftStyle: st.borderLeftStyle,
+                borderLeftWidth: st.borderLeftWidth,
+                borderLeftColor: st.borderLeftColor
+              });
+            } else vg.style.display = "none";
+          }
+          if (hg) {
+            if (hSnap) {
+              const st = styleFor(hSnap.kind);
+              Object.assign(hg.style, {
+                display: "block",
+                top: `${hSnap.pos - wr.top}px`,
+                left: "0px",
+                width: `${wr.width}px`,
+                borderTopStyle: st.borderTopStyle,
+                borderTopWidth: st.borderTopWidth,
+                borderTopColor: st.borderTopColor
+              });
+            } else hg.style.display = "none";
+          }
         }
         pd.dxU = dx / pd.a;
         pd.dyU = dy / pd.d;
