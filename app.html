@@ -2721,6 +2721,23 @@ const Icon = ({
       strokeWidth: "2",
       strokeLinejoin: "round"
     }),
+    pause: React.createElement(React.Fragment, null, React.createElement("rect", {
+      x: "6",
+      y: "4",
+      width: "4",
+      height: "16",
+      rx: "1",
+      fill: "currentColor",
+      stroke: "none"
+    }), React.createElement("rect", {
+      x: "14",
+      y: "4",
+      width: "4",
+      height: "16",
+      rx: "1",
+      fill: "currentColor",
+      stroke: "none"
+    })),
     stop: React.createElement("rect", {
       x: "5",
       y: "5",
@@ -7509,12 +7526,15 @@ function SvgMotionStudio() {
   const [multiSel, setMultiSel] = useState([]);
   const [inputOpen, setInputOpen] = useState(false);
   const [playKey, setPlayKey] = useState(0);
-  const [playing, setPlaying] = useState(true);
+  const [playing, setPlaying] = useState(false);
   const [seqOpen, setSeqOpen] = useState(false);
   const [mp4Open, setMp4Open] = useState(false);
   const [cropData, setCropData] = useState(null);
   const [videoEdit, setVideoEdit] = useState(null);
   const [seekT, setSeekT] = useState(null);
+  const partResizeRef = useRef(null);
+  const previewHostRef = useRef(null);
+  const [resizeTick, setResizeTick] = useState(0);
   const [liveT, setLiveT] = useState(0);
   const [presetKey, setPresetKey] = useState("shimen");
   const [bgm, setBgm] = useState(null);
@@ -7913,6 +7933,63 @@ function SvgMotionStudio() {
     };
     reader.readAsDataURL(file);
   };
+  const addVideoPartRef = useRef(null);
+  const addVideoPart = file => {
+    if (!scene) {
+      showToast("先に素材を追加してください");
+      return;
+    }
+    if (!file || !file.type.startsWith("video/")) {
+      showToast("動画ファイルを選んでください");
+      return;
+    }
+    const src = URL.createObjectURL(file);
+    const probe = document.createElement("video");
+    probe.preload = "metadata";
+    probe.onloadedmetadata = () => {
+      const vw = probe.videoWidth || 1280,
+        vh = probe.videoHeight || 720;
+      const clearPx = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+      const newText = addImageToSvg(scene.svgText, clearPx, vw, vh);
+      const parsedNew = parseSvg(newText);
+      const newUid = `p${parsedNew.children.length - 1}`;
+      const ns = {
+        ...scene.settings,
+        [newUid]: {
+          ...defaultSetting(),
+          type: "fadeIn",
+          duration: 0.6,
+          delay: 0
+        }
+      };
+      const box = {
+        w: vw,
+        h: vh
+      };
+      setScenesH(sc => sc.map(s => s.id === scene.id ? {
+        ...s,
+        svgText: newText,
+        settings: ns
+      } : s));
+      setSelected(newUid);
+      setVideoEdit({
+        uid: newUid,
+        box,
+        video: {
+          src,
+          name: file.name,
+          start: 0,
+          end: 0,
+          nx: 0,
+          ny: 0,
+          cscale: 1
+        }
+      });
+      showToast("動画を追加しました。表示範囲やトリムを調整してください");
+    };
+    probe.onerror = () => showToast("動画を読み込めませんでした");
+    probe.src = src;
+  };
   const update = useCallback((uid, patch) => {
     updateScene(scene.id, {
       settings: {
@@ -7969,6 +8046,10 @@ function SvgMotionStudio() {
     highlightUids: multiSel,
     overlays: scene.overlays
   }) : "", [scene?.svgText, settings, playing, playKey, frame, scene?.videoParts, scene?.duration, seekT, selected, multiSel, scene?.overlays]);
+  useEffect(() => {
+    const id = setTimeout(() => setResizeTick(t => t + 1), 40);
+    return () => clearTimeout(id);
+  }, [selected, previewSvg, pvZoom, liveT, seekT, activeId]);
   const liveRef = useRef({});
   liveRef.current = {
     selected,
@@ -8096,6 +8177,7 @@ function SvgMotionStudio() {
   const previewBoxEl = scene && !parsed.error ? React.createElement("div", {
     key: `${activeId}_${playKey}`,
     ref: el => {
+      previewHostRef.current = el;
       if (el) {
         hookMedia(el);
         attachWheelZoom(el);
@@ -8367,12 +8449,106 @@ function SvgMotionStudio() {
       __html: previewSvg
     }
   }) : null;
+  const ResizeHandles = () => {
+    if (pvModal || !scene || !selected || !selected.startsWith("p")) return null;
+    void resizeTick;
+    const host = previewHostRef.current;
+    if (!host) return null;
+    const el = host.querySelector(`[data-part="${selected}"]`);
+    if (!el || !el.getBoundingClientRect) return null;
+    const r = el.getBoundingClientRect();
+    const hr = host.getBoundingClientRect();
+    if (!r.width || !r.height) return null;
+    const left = r.left - hr.left,
+      top = r.top - hr.top;
+    const corners = [["nw", 0, 0], ["ne", r.width, 0], ["sw", 0, r.height], ["se", r.width, r.height]];
+    const startResize = (e, corner) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const cx = r.left + r.width / 2,
+        cy = r.top + r.height / 2;
+      const d0 = Math.hypot(e.clientX - cx, e.clientY - cy) || 1;
+      partResizeRef.current = {
+        uid: selected,
+        cx,
+        cy,
+        d0,
+        factor: 1
+      };
+      const onMove = ev => {
+        const pr = partResizeRef.current;
+        if (!pr) return;
+        const d = Math.hypot(ev.clientX - pr.cx, ev.clientY - pr.cy);
+        pr.factor = Math.max(0.1, Math.min(8, d / pr.d0));
+        const g = host.querySelector(`[data-part="${pr.uid}"]`);
+        if (g) {
+          g.style.transformBox = "fill-box";
+          g.style.transformOrigin = "center";
+          g.style.transform = `scale(${pr.factor})`;
+        }
+        setResizeTick(t => t + 1);
+      };
+      const onUp = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        const pr = partResizeRef.current;
+        partResizeRef.current = null;
+        const g = host.querySelector(`[data-part="${pr.uid}"]`);
+        if (g) g.style.transform = "";
+        if (pr && Math.abs(pr.factor - 1) > 0.01) {
+          const sceneId = scene.id,
+            uid = pr.uid,
+            factor = pr.factor;
+          setScenesH(sc => sc.map(s => s.id === sceneId ? {
+            ...s,
+            svgText: scalePartAt(s.svgText, uid, factor)
+          } : s));
+        }
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    };
+    return React.createElement(React.Fragment, null, corners.map(([pos, dx, dy]) => React.createElement("div", {
+      key: pos,
+      onPointerDown: e => startResize(e, pos),
+      style: {
+        position: "absolute",
+        left: left + dx - 6,
+        top: top + dy - 6,
+        width: 12,
+        height: 12,
+        background: "#8B7CFF",
+        border: "2px solid #fff",
+        borderRadius: 3,
+        zIndex: 7,
+        cursor: pos === "nw" || pos === "se" ? "nwse-resize" : "nesw-resize",
+        touchAction: "none",
+        boxShadow: "0 1px 4px #0006"
+      }
+    })));
+  };
   const replay = () => {
     setSeekT(null);
     setPlaying(true);
     setPlayKey(k => k + 1);
     stopLiveAudio();
     playSceneAudio(scene);
+  };
+  const resumeFromRef = useRef(0);
+  const togglePlay = () => {
+    if (playing && seekT === null) {
+      setSeekT(+liveT.toFixed(2));
+      setPlaying(false);
+      stopLiveAudio();
+    } else {
+      const from = seekT !== null ? seekT : 0;
+      resumeFromRef.current = from;
+      setSeekT(null);
+      setPlaying(true);
+      setPlayKey(k => k + 1);
+      stopLiveAudio();
+      playSceneAudio(scene);
+    }
   };
   useEffect(() => () => stopLiveAudio(), []);
   useEffect(() => {
@@ -8386,12 +8562,14 @@ function SvgMotionStudio() {
   useEffect(() => {
     if (!playing || seekT !== null || !scene) return;
     const cap = Math.max(animEnd(settings), scene.duration || 0, 0.5);
+    const from = resumeFromRef.current || 0;
+    resumeFromRef.current = 0;
     const t0 = performance.now();
     let raf;
     const tick = () => {
-      const t = (performance.now() - t0) / 1000;
+      const t = from + (performance.now() - t0) / 1000;
       setLiveT(Math.min(t, cap));
-      if (t < cap) raf = requestAnimationFrame(tick);
+      if (t < cap) raf = requestAnimationFrame(tick);else setPlaying(false);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
@@ -9076,6 +9254,34 @@ function SvgMotionStudio() {
     onChange: e => {
       const f = e.target.files?.[0];
       if (f) addImagePart(f);
+      e.target.value = "";
+    }
+  }), React.createElement("button", {
+    className: "btn",
+    style: {
+      ...S.ghostBtn,
+      marginTop: 6,
+      width: "100%",
+      fontSize: 12,
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6
+    },
+    onClick: () => addVideoPartRef.current?.click()
+  }, React.createElement(Icon, {
+    name: "video",
+    size: 14
+  }), "\u52D5\u753B\u3092\u8FFD\u52A0\uFF08MP4\u306A\u3069\uFF09"), React.createElement("input", {
+    ref: addVideoPartRef,
+    type: "file",
+    accept: "video/*",
+    style: {
+      display: "none"
+    },
+    onChange: e => {
+      const f = e.target.files?.[0];
+      if (f) addVideoPart(f);
       e.target.value = "";
     }
   })), React.createElement("div", {
@@ -11718,29 +11924,33 @@ function SvgMotionStudio() {
       lineHeight: 1.5,
       backdropFilter: "blur(4px)"
     }
-  }, "\u30C9\u30E9\u30C3\u30B0\u3067\u79FB\u52D5 \u30FB Ctrl+\u30DB\u30A4\u30FC\u30EB\uFF0F\u30D4\u30F3\u30C1\u3067\u62E1\u5927\u7E2E\u5C0F"), !pvModal && previewBoxEl), React.createElement("div", {
+  }, "\u30C9\u30E9\u30C3\u30B0\u3067\u79FB\u52D5 \u30FB Ctrl+\u30DB\u30A4\u30FC\u30EB\uFF0F\u30D4\u30F3\u30C1\u3067\u62E1\u5927\u7E2E\u5C0F"), !pvModal && previewBoxEl, !pvModal && React.createElement(ResizeHandles, null)), React.createElement("div", {
     style: S.controls
   }, React.createElement("button", {
     className: "btn",
     style: S.playBtn,
-    onClick: replay
+    onClick: togglePlay
   }, React.createElement("span", {
     style: {
       display: "inline-flex",
       alignItems: "center",
       gap: 6
     }
-  }, React.createElement(Icon, {
+  }, playing && seekT === null ? React.createElement(React.Fragment, null, React.createElement(Icon, {
+    name: "pause"
+  }), "\u4E00\u6642\u505C\u6B62") : React.createElement(React.Fragment, null, React.createElement(Icon, {
     name: "play"
-  }), "\u30B7\u30FC\u30F3\u518D\u751F")), React.createElement("button", {
+  }), "\u30B7\u30FC\u30F3\u518D\u751F"))), React.createElement("button", {
     className: "btn",
     style: S.ghostBtn,
     onClick: () => {
       setPlaying(false);
       setSeekT(null);
+      resumeFromRef.current = 0;
+      setLiveT(0);
       stopLiveAudio();
     }
-  }, "\u23F9 \u9759\u6B62\u8868\u793A"), React.createElement("span", {
+  }, "\u23F9 \u6700\u521D\u306B\u623B\u3059"), React.createElement("span", {
     style: {
       display: "flex",
       gap: 4,
@@ -11852,15 +12062,28 @@ function SvgMotionStudio() {
       position: "relative",
       paddingBottom: 4
     },
-    onClick: e => {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const trackLeft = rect.left + 150,
-        trackW = rect.width - 162;
-      const frac = (e.clientX - trackLeft) / trackW;
-      if (frac >= 0 && frac <= 1) {
-        setPlaying(true);
-        setSeekT(+(frac * tlMax).toFixed(2));
-      }
+    onPointerDown: e => {
+      if (e.target.closest("[data-tlbar]")) return;
+      const host = e.currentTarget;
+      const scrub = clientX => {
+        const rect = host.getBoundingClientRect();
+        const trackLeft = rect.left + 150,
+          trackW = rect.width - 162;
+        const frac = (clientX - trackLeft) / trackW;
+        const cl = Math.max(0, Math.min(1, frac));
+        setPlaying(false);
+        stopLiveAudio();
+        setSeekT(+(cl * tlMax).toFixed(2));
+      };
+      scrub(e.clientX);
+      host.setPointerCapture?.(e.pointerId);
+      const move = ev => scrub(ev.clientX);
+      const up = () => {
+        host.removeEventListener("pointermove", move);
+        host.removeEventListener("pointerup", up);
+      };
+      host.addEventListener("pointermove", move);
+      host.addEventListener("pointerup", up);
     }
   }, React.createElement("div", {
     style: {
