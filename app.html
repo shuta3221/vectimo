@@ -4877,6 +4877,46 @@ function alignPart(svgText, uid, mode) {
   }
   return movePartPosition(svgText, uid, dx, dy);
 }
+function alignPartsToRef(svgText, refUid, targetUids, mode) {
+  const ref = measurePartBBox(svgText, refUid);
+  if (!ref) return svgText;
+  let out = svgText;
+  for (const uid of targetUids) {
+    if (uid === refUid) continue;
+    const box = measurePartBBox(out, uid);
+    if (!box) continue;
+    let dx = 0,
+      dy = 0;
+    switch (mode) {
+      case "left":
+        dx = ref.x - box.x;
+        break;
+      case "hcenter":
+        dx = ref.x + ref.w / 2 - (box.x + box.w / 2);
+        break;
+      case "right":
+        dx = ref.x + ref.w - (box.x + box.w);
+        break;
+      case "top":
+        dy = ref.y - box.y;
+        break;
+      case "vcenter":
+        dy = ref.y + ref.h / 2 - (box.y + box.h / 2);
+        break;
+      case "bottom":
+        dy = ref.y + ref.h - (box.y + box.h);
+        break;
+      case "center":
+        dx = ref.x + ref.w / 2 - (box.x + box.w / 2);
+        dy = ref.y + ref.h / 2 - (box.y + box.h / 2);
+        break;
+      default:
+        continue;
+    }
+    out = movePartPosition(out, uid, dx, dy);
+  }
+  return out;
+}
 function shapeInnerSvg(shape, color, geom) {
   const {
     cx,
@@ -7415,6 +7455,7 @@ function SvgMotionStudio() {
   const [scenes, setScenes] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [selected, setSelected] = useState(null);
+  const [multiSel, setMultiSel] = useState([]);
   const [inputOpen, setInputOpen] = useState(false);
   const [playKey, setPlayKey] = useState(0);
   const [playing, setPlaying] = useState(true);
@@ -7538,9 +7579,13 @@ function SvgMotionStudio() {
         const t = e.target;
         const tag = (t.tagName || "").toLowerCase();
         if (tag === "input" || tag === "textarea" || tag === "select" || t.isContentEditable) return;
-        if (selectedRef.current && selectedRef.current.startsWith("p")) {
+        const sel = selectedRef.current;
+        if (sel && sel.startsWith("p")) {
           e.preventDefault();
-          deletePartRef.current(selectedRef.current);
+          deletePartRef.current(sel);
+        } else if (sel && sel.startsWith("ov")) {
+          e.preventDefault();
+          deleteOverlayRef.current(+sel.slice(2));
         }
       }
     };
@@ -7610,6 +7655,14 @@ function SvgMotionStudio() {
     showToast("パーツを削除しました（Ctrl+Zで戻せます）");
   };
   deletePartRef.current = deletePart;
+  const deleteOverlayRef = useRef(() => {});
+  deleteOverlayRef.current = oi => {
+    if (!scene) return;
+    updateScene(scene.id, {
+      overlays: (scene.overlays || []).filter((_, i) => i !== oi)
+    });
+    setSelected(parsed.parts[0]?.uid ?? null);
+  };
   useEffect(() => {
     if (document.getElementById("vectimo-google-fonts")) return;
     const pre1 = document.createElement("link");
@@ -8003,6 +8056,15 @@ function SvgMotionStudio() {
           if (!ctm) return;
           const nr = node.getBoundingClientRect();
           const br = svgOwner.getBoundingClientRect();
+          const others = e.currentTarget.querySelectorAll("[data-part]");
+          const snapX = [],
+            snapY = [];
+          others.forEach(el => {
+            if (el.getAttribute("data-part") === dp) return;
+            const r = el.getBoundingClientRect();
+            snapX.push(r.left, r.left + r.width / 2, r.left + r.width);
+            snapY.push(r.top, r.top + r.height / 2, r.top + r.height);
+          });
           partDragRef.current = {
             uid: dp,
             sx: e.clientX,
@@ -8015,6 +8077,12 @@ function SvgMotionStudio() {
             c0x: nr.left + nr.width / 2,
             c0y: nr.top + nr.height / 2,
             box: br,
+            nl0: nr.left,
+            nt0: nr.top,
+            nw: nr.width,
+            nh: nr.height,
+            snapX,
+            snapY,
             wrapEl: e.currentTarget.parentElement
           };
           setSelected(dp);
@@ -8031,31 +8099,55 @@ function SvgMotionStudio() {
           dy = e.clientY - pd.sy;
         if (!pd.moved && Math.hypot(dx, dy) < 4) return;
         pd.moved = true;
+        const SNAP = 7;
         const boxCx = pd.box.left + pd.box.width / 2;
         const boxCy = pd.box.top + pd.box.height / 2;
-        const SNAP = 7;
-        const nearV = Math.abs(pd.c0x + dx - boxCx) < SNAP;
-        const nearH = Math.abs(pd.c0y + dy - boxCy) < SNAP;
-        if (nearV) dx = boxCx - pd.c0x;
-        if (nearH) dy = boxCy - pd.c0y;
+        const curXs = [pd.nl0 + dx, pd.nl0 + pd.nw / 2 + dx, pd.nl0 + pd.nw + dx];
+        const curYs = [pd.nt0 + dy, pd.nt0 + pd.nh / 2 + dy, pd.nt0 + pd.nh + dy];
+        const candX = [...pd.snapX, boxCx];
+        const candY = [...pd.snapY, boxCy];
+        let bestVX = null,
+          bestVEdge = 0,
+          minVX = SNAP;
+        curXs.forEach((cx, ei) => candX.forEach(s => {
+          const dd = Math.abs(cx - s);
+          if (dd < minVX) {
+            minVX = dd;
+            bestVX = s;
+            bestVEdge = ei;
+          }
+        }));
+        let bestHY = null,
+          bestHEdge = 0,
+          minHY = SNAP;
+        curYs.forEach((cy, ei) => candY.forEach(s => {
+          const dd = Math.abs(cy - s);
+          if (dd < minHY) {
+            minHY = dd;
+            bestHY = s;
+            bestHEdge = ei;
+          }
+        }));
+        if (bestVX !== null) dx += bestVX - curXs[bestVEdge];
+        if (bestHY !== null) dy += bestHY - curYs[bestHEdge];
         const wrap = pd.wrapEl;
         if (wrap) {
           const wr = wrap.getBoundingClientRect();
           const vg = wrap.querySelector(".pv-vguide"),
             hg = wrap.querySelector(".pv-hguide");
-          if (vg) Object.assign(vg.style, nearV ? {
+          if (vg) Object.assign(vg.style, bestVX !== null ? {
             display: "block",
-            left: `${boxCx - wr.left}px`,
-            top: `${pd.box.top - wr.top}px`,
-            height: `${pd.box.height}px`
+            left: `${bestVX - wr.left}px`,
+            top: "0px",
+            height: `${wr.height}px`
           } : {
             display: "none"
           });
-          if (hg) Object.assign(hg.style, nearH ? {
+          if (hg) Object.assign(hg.style, bestHY !== null ? {
             display: "block",
-            top: `${boxCy - wr.top}px`,
-            left: `${pd.box.left - wr.left}px`,
-            width: `${pd.box.width}px`
+            top: `${bestHY - wr.top}px`,
+            left: "0px",
+            width: `${wr.width}px`
           } : {
             display: "none"
           });
@@ -8676,11 +8768,18 @@ function SvgMotionStudio() {
     }
   }, parsed.parts.map((p, i) => {
     const s = settings[p.uid];
-    const active = selected === p.uid;
+    const active = selected === p.uid || multiSel.includes(p.uid);
     return React.createElement("div", {
       key: p.uid,
       className: "partRow",
-      onClick: () => setSelected(p.uid),
+      onClick: e => {
+        if (e.shiftKey && selected && selected.startsWith("p") && selected !== p.uid) {
+          setMultiSel(prev => prev.includes(p.uid) ? prev.filter(u => u !== p.uid) : [...prev, p.uid]);
+        } else {
+          setSelected(p.uid);
+          setMultiSel([]);
+        }
+      },
       ref: el => {
         if (el && selected === p.uid && el.scrollIntoView) {
           try {
@@ -9361,53 +9460,61 @@ function SvgMotionStudio() {
       fontSize: 11.5,
       color: "#9AA0AE"
     }
-  }, "\u6574\u5217\uFF08\u753B\u9762\u57FA\u6E96\uFF09"), React.createElement("div", {
+  }, multiSel.length ? `整列（基準：最初に選んだパーツ・他${multiSel.length}個を揃える）` : "整列（画面基準）"), (() => {
+    const doAlign = m => {
+      if (multiSel.length) updateScene(scene.id, {
+        svgText: alignPartsToRef(scene.svgText, selected, multiSel, m)
+      });else updateScene(scene.id, {
+        svgText: alignPart(scene.svgText, selected, m)
+      });
+    };
+    return React.createElement(React.Fragment, null, React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 6
+      }
+    }, [["left", "⬅ 左"], ["hcenter", "｜ 左右中央"], ["right", "右 ➡"]].map(([m, lb]) => React.createElement("button", {
+      key: m,
+      className: "btn",
+      style: {
+        ...S.ghostBtn,
+        flex: 1,
+        padding: "6px 4px",
+        fontSize: 11.5
+      },
+      title: lb,
+      onClick: () => doAlign(m)
+    }, lb))), React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 6
+      }
+    }, [["top", "⬆ 上"], ["vcenter", "― 上下中央"], ["bottom", "下 ⬇"]].map(([m, lb]) => React.createElement("button", {
+      key: m,
+      className: "btn",
+      style: {
+        ...S.ghostBtn,
+        flex: 1,
+        padding: "6px 4px",
+        fontSize: 11.5
+      },
+      title: lb,
+      onClick: () => doAlign(m)
+    }, lb))), React.createElement("button", {
+      className: "btn",
+      style: {
+        ...S.ghostBtn,
+        padding: "6px 8px",
+        fontSize: 11.5
+      },
+      onClick: () => doAlign("center")
+    }, multiSel.length ? "＋ 基準パーツの中央に揃える" : "＋ 画面の中央に配置"));
+  })(), React.createElement("p", {
     style: {
-      display: "flex",
-      gap: 6
+      ...S.hint,
+      marginTop: 0
     }
-  }, [["left", "⬅ 左"], ["hcenter", "｜ 左右中央"], ["right", "右 ➡"]].map(([m, lb]) => React.createElement("button", {
-    key: m,
-    className: "btn",
-    style: {
-      ...S.ghostBtn,
-      flex: 1,
-      padding: "6px 4px",
-      fontSize: 11.5
-    },
-    title: lb,
-    onClick: () => updateScene(scene.id, {
-      svgText: alignPart(scene.svgText, selected, m)
-    })
-  }, lb))), React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 6
-    }
-  }, [["top", "⬆ 上"], ["vcenter", "― 上下中央"], ["bottom", "下 ⬇"]].map(([m, lb]) => React.createElement("button", {
-    key: m,
-    className: "btn",
-    style: {
-      ...S.ghostBtn,
-      flex: 1,
-      padding: "6px 4px",
-      fontSize: 11.5
-    },
-    title: lb,
-    onClick: () => updateScene(scene.id, {
-      svgText: alignPart(scene.svgText, selected, m)
-    })
-  }, lb))), React.createElement("button", {
-    className: "btn",
-    style: {
-      ...S.ghostBtn,
-      padding: "6px 8px",
-      fontSize: 11.5
-    },
-    onClick: () => updateScene(scene.id, {
-      svgText: alignPart(scene.svgText, selected, "center")
-    })
-  }, "\uFF0B \u753B\u9762\u306E\u4E2D\u592E\u306B\u914D\u7F6E")), React.createElement("button", {
+  }, "Shift\uFF0B\u30AF\u30EA\u30C3\u30AF\u3067\u8907\u6570\u9078\u629E\u3002\u6700\u521D\u306B\u9078\u3093\u3060\u30D1\u30FC\u30C4\u304C\u57FA\u6E96\u306B\u306A\u308A\u307E\u3059\u3002")), React.createElement("button", {
     className: "btn",
     style: {
       ...S.ghostBtn,
