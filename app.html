@@ -2429,51 +2429,102 @@ const defaultSetting = () => ({
   exit: null
 });
 const OV_FONTS = {
-  gothic: {
-    label: "ゴシック（標準）",
+  notoSansJP: {
+    label: "Noto Sans JP",
+    group: "日本語 ゴシック体",
     css: "'Noto Sans JP','Hiragino Sans','Yu Gothic',sans-serif"
   },
-  mincho: {
-    label: "明朝",
+  yuGothic: {
+    label: "游ゴシック",
+    group: "日本語 ゴシック体",
+    css: "'Yu Gothic','YuGothic','Hiragino Sans',sans-serif"
+  },
+  hiraginoKaku: {
+    label: "ヒラギノ角ゴシック",
+    group: "日本語 ゴシック体",
+    css: "'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif"
+  },
+  mplusRounded: {
+    label: "M PLUS Rounded 1c",
+    group: "日本語 ゴシック体",
+    css: "'M PLUS Rounded 1c','Hiragino Maru Gothic ProN',sans-serif"
+  },
+  notoSerifJP: {
+    label: "Noto Serif JP",
+    group: "日本語 明朝・筆",
     css: "'Noto Serif JP','Hiragino Mincho ProN','Yu Mincho',serif"
   },
-  maru: {
-    label: "丸ゴシック",
-    css: "'M PLUS Rounded 1c','Hiragino Maru Gothic ProN','Yu Gothic',sans-serif"
+  yuMincho: {
+    label: "游明朝",
+    group: "日本語 明朝・筆",
+    css: "'Yu Mincho','YuMincho','Hiragino Mincho ProN',serif"
   },
-  hand: {
-    label: "手書き風",
-    css: "'Klee One','Yu Gothic',cursive"
+  kleeOne: {
+    label: "Klee One（楷書系）",
+    group: "日本語 明朝・筆",
+    css: "'Klee One','Yu Mincho',serif"
+  },
+  helvetica: {
+    label: "Helvetica / Arial",
+    group: "欧文 サンセリフ",
+    css: "Helvetica,Arial,sans-serif"
+  },
+  arialBlack: {
+    label: "Arial Black",
+    group: "欧文 サンセリフ",
+    css: "'Arial Black',Arial,sans-serif"
   },
   impact: {
-    label: "極太インパクト",
-    css: "'Arial Black','Impact','Noto Sans JP',sans-serif"
+    label: "Impact",
+    group: "欧文 サンセリフ",
+    css: "Impact,'Arial Black',sans-serif"
   },
-  mono: {
-    label: "等幅",
-    css: "'DM Mono','Courier New',monospace"
+  verdana: {
+    label: "Verdana",
+    group: "欧文 サンセリフ",
+    css: "Verdana,Geneva,sans-serif"
   },
-  pop: {
-    label: "ポップ体",
-    css: "'HGP創英角ﾎﾟｯﾌﾟ体','HGPSoeiKakupoptai','Chalkboard SE','Comic Sans MS','Noto Sans JP',sans-serif"
+  georgia: {
+    label: "Georgia",
+    group: "欧文 セリフ・等幅",
+    css: "Georgia,'Times New Roman',serif"
   },
-  kyokasho: {
-    label: "教科書体",
-    css: "'UD デジタル 教科書体 N-R','UD Digi Kyokasho N-R','YuKyokasho','Hiragino Mincho ProN',serif"
+  times: {
+    label: "Times New Roman",
+    group: "欧文 セリフ・等幅",
+    css: "'Times New Roman',Times,serif"
   },
-  gyosho: {
-    label: "行書体",
-    css: "'HGS行書体','HGSGyoshotai','Hiragino Mincho ProN','Yu Mincho',cursive"
-  },
-  script: {
-    label: "筆記体（欧文）",
-    css: "'Segoe Script','Brush Script MT','Snell Roundhand',cursive"
-  },
-  serifEn: {
-    label: "セリフ（欧文）",
-    css: "Georgia,'Times New Roman','Noto Serif JP',serif"
+  courier: {
+    label: "Courier New（等幅）",
+    group: "欧文 セリフ・等幅",
+    css: "'Courier New',Courier,monospace"
   }
 };
+const FONT_ALIAS = {
+  gothic: "notoSansJP",
+  mincho: "notoSerifJP",
+  maru: "mplusRounded",
+  hand: "kleeOne",
+  mono: "courier",
+  pop: "mplusRounded",
+  kyokasho: "notoSerifJP",
+  gyosho: "kleeOne",
+  script: "georgia",
+  serifEn: "georgia"
+};
+function FontOptions() {
+  const groups = {};
+  Object.entries(OV_FONTS).forEach(([k, v]) => {
+    (groups[v.group] = groups[v.group] || []).push([k, v]);
+  });
+  return Object.entries(groups).map(([g, arr]) => React.createElement("optgroup", {
+    key: g,
+    label: g
+  }, arr.map(([k, v]) => React.createElement("option", {
+    key: k,
+    value: k
+  }, v.label))));
+}
 function getSceneAudios(s) {
   if (!s) return [];
   if (s.audios) return s.audios;
@@ -2491,7 +2542,7 @@ const defaultOverlay = () => ({
   x: 50,
   y: 86,
   size: 4.5,
-  font: "gothic",
+  font: "notoSansJP",
   color: "#FFFFFF",
   outline: "#000000",
   style: "outline",
@@ -2863,7 +2914,7 @@ const TEMPLATES = [{
         x: 50,
         y: 86,
         size: 4.5,
-        font: "gothic",
+        font: "notoSansJP",
         color: "#FFFFFF",
         outline: "#000000",
         style: "outline",
@@ -3976,12 +4027,20 @@ function buildAnimatedSvg(svgText, settings, {
       gInner.setAttribute("class", cls(`ov${oi}`));
       g.appendChild(gInner);
       if (o.style === "band") {
-        const bw = o.text.length * fs * 1.05 + fs * 1.2;
         const band = doc.createElementNS(SVGNS, "rect");
-        band.setAttribute("x", -bw / 2);
-        band.setAttribute("y", -fs * 0.85);
-        band.setAttribute("width", bw);
-        band.setAttribute("height", fs * 1.7);
+        if (o.vertical) {
+          const bh = o.text.length * fs * 1.05 + fs * 1.2;
+          band.setAttribute("x", -fs * 0.85);
+          band.setAttribute("y", -bh / 2);
+          band.setAttribute("width", fs * 1.7);
+          band.setAttribute("height", bh);
+        } else {
+          const bw = o.text.length * fs * 1.05 + fs * 1.2;
+          band.setAttribute("x", -bw / 2);
+          band.setAttribute("y", -fs * 0.85);
+          band.setAttribute("width", bw);
+          band.setAttribute("height", fs * 1.7);
+        }
         band.setAttribute("rx", fs * 0.15);
         band.setAttribute("fill", o.bandColor || "#000000");
         band.setAttribute("opacity", "0.75");
@@ -3992,9 +4051,15 @@ function buildAnimatedSvg(svgText, settings, {
       tx.setAttribute("y", 0);
       tx.setAttribute("text-anchor", "middle");
       tx.setAttribute("dominant-baseline", "central");
+      if (o.vertical) {
+        tx.setAttribute("writing-mode", "vertical-rl");
+        tx.style.writingMode = "vertical-rl";
+        tx.setAttribute("text-orientation", "upright");
+        tx.style.textOrientation = "upright";
+      }
       tx.setAttribute("font-size", fs);
       tx.setAttribute("font-weight", "700");
-      tx.setAttribute("font-family", (OV_FONTS[o.font] || OV_FONTS.gothic).css);
+      tx.setAttribute("font-family", (OV_FONTS[o.font] || OV_FONTS[FONT_ALIAS[o.font]] || OV_FONTS.notoSansJP).css);
       tx.setAttribute("fill", o.color || "#FFFFFF");
       if (o.style !== "band") {
         tx.setAttribute("stroke", o.outline || "#000000");
@@ -4210,6 +4275,28 @@ function setPartTextUnit(svgText, uid, unitIndex, value) {
   leafs[unitIndex].textContent = value;
   if (!parsed.root.getAttribute("xmlns")) parsed.root.setAttribute("xmlns", "http://www.w3.org/2000/svg");
   return new XMLSerializer().serializeToString(parsed.root);
+}
+function setPartFont(svgText, uid, fontKey) {
+  const parsed = parseSvg(svgText);
+  if (parsed.error) return svgText;
+  const el = parsed.children[+uid.slice(1)];
+  if (!el) return svgText;
+  const css = (OV_FONTS[fontKey] || OV_FONTS.notoSansJP).css;
+  const texts = el.tagName === "text" ? [el] : Array.from(el.querySelectorAll("text"));
+  texts.forEach(tx => {
+    tx.setAttribute("font-family", css);
+    tx.setAttribute("data-font", fontKey);
+  });
+  if (!parsed.root.getAttribute("xmlns")) parsed.root.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  return new XMLSerializer().serializeToString(parsed.root);
+}
+function getPartFont(svgText, uid) {
+  const parsed = parseSvg(svgText);
+  if (parsed.error) return null;
+  const el = parsed.children[+uid.slice(1)];
+  if (!el) return null;
+  const tx = el.tagName === "text" ? el : el.querySelector("text");
+  return tx ? tx.getAttribute("data-font") || null : null;
 }
 function TextEditField({
   initial,
@@ -8802,14 +8889,32 @@ function SvgMotionStudio() {
       style: S.label
     }, "\u30D5\u30A9\u30F3\u30C8"), React.createElement("select", {
       style: S.select,
-      value: ov.font || "gothic",
+      value: ov.font || "notoSansJP",
       onChange: e => upOv({
         font: e.target.value
       })
-    }, Object.entries(OV_FONTS).map(([k, v]) => React.createElement("option", {
-      key: k,
-      value: k
-    }, v.label)))), React.createElement("label", {
+    }, React.createElement(FontOptions, null))), React.createElement("label", {
+      style: {
+        ...S.field,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        cursor: "pointer"
+      }
+    }, React.createElement("input", {
+      type: "checkbox",
+      checked: !!ov.vertical,
+      onChange: e => upOv({
+        vertical: e.target.checked
+      }),
+      style: {
+        width: 16,
+        height: 16,
+        accentColor: "#8B7CFF"
+      }
+    }), React.createElement("span", {
+      style: S.label
+    }, "\u7E26\u66F8\u304D\u306B\u3059\u308B")), React.createElement("label", {
       style: S.field
     }, React.createElement("span", {
       style: S.label
@@ -9458,7 +9563,23 @@ function SvgMotionStudio() {
       onCommit: v => updateScene(scene.id, {
         svgText: setPartTextUnit(scene.svgText, selected, ui, v)
       })
-    })));
+    })), React.createElement("label", {
+      style: {
+        ...S.field,
+        marginTop: 4
+      }
+    }, React.createElement("span", {
+      style: S.label
+    }, "\u30D5\u30A9\u30F3\u30C8"), React.createElement("select", {
+      style: S.select,
+      value: getPartFont(scene.svgText, selected) || "",
+      onChange: e => updateScene(scene.id, {
+        svgText: setPartFont(scene.svgText, selected, e.target.value)
+      })
+    }, React.createElement("option", {
+      value: "",
+      disabled: true
+    }, "\u30D5\u30A9\u30F3\u30C8\u3092\u9078\u629E\u2026"), React.createElement(FontOptions, null))));
   })(), selPart.hasImage && React.createElement(React.Fragment, null, React.createElement("div", {
     style: {
       display: "flex",
