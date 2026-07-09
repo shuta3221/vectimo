@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>透過画像に影・フチを付けて立体加工（無料・ブラウザ完結）| Vectimo</title>
+<meta name="description" content="背景が透明なPNG画像に、影（ドロップシャドウ）や白フチを付けて立体的に加工できる無料ツール。アップロード不要でブラウザ内で完結。切り抜いた画像がのっぺりしがちな悩みを解決します。">
+<link rel="canonical" href="https://vectimo.pages.dev/image-shadow.html">
+<meta property="og:title" content="透過画像に影・フチを付けて立体加工（無料）| Vectimo">
+<meta property="og:description" content="透過PNGに影や白フチを付けてステッカー風・立体的に。ブラウザ完結・アップロードなし。">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://vectimo.pages.dev/image-shadow.html">
+<meta property="og:image" content="https://vectimo.pages.dev/vectimo-ogp.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%2314161C'/%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='0'%3E%3Cstop offset='0' stop-color='%23FFFFFF'/%3E%3Cstop offset='1' stop-color='%238B5CF6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M12 24 H28 L42 66 L53 46 L62 58 L77 24 H90 V90 H79 V48 L64 78 L53 63 L44 86 H35 Z' fill='url(%23g)'/%3E%3C/svg%3E">
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"画像の立体加工（影・フチ）Vectimo","url":"https://vectimo.pages.dev/image-shadow.html","description":"透過PNG画像に影や縁取りを付けて立体的に加工する無料ツール。ブラウザ内で完結、アップロード不要。","applicationCategory":"MultimediaApplication","operatingSystem":"Web","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"}}
+</script>
+<style>
+:root{--bg:#14161C;--panel:#1D2129;--line:#333A4A;--tx:#EDEEF2;--sub:#9AA0AE;--mut:#5C6373;--pu:#8B7CFF;--te:#5FD6C4}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:'Zen Kaku Gothic New','Hiragino Sans','Yu Gothic',sans-serif;line-height:1.8}
+a{color:var(--pu)}
+.wrap{max-width:960px;margin:0 auto;padding:0 22px}
+header{position:sticky;top:0;z-index:10;background:#14161CEE;backdrop-filter:blur(8px);border-bottom:1px solid #262B38}
+.nav{display:flex;align-items:center;gap:18px;padding:14px 0}
+.logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;color:var(--tx);text-decoration:none}
+.nav .links{margin-left:auto;display:flex;gap:18px;align-items:center;font-size:13.5px}
+.nav .links a{color:var(--sub);text-decoration:none}
+.btn{display:inline-block;background:linear-gradient(100deg,#6A46F5,#7C5CFF);color:#fff !important;font-weight:800;text-decoration:none;border-radius:12px;padding:12px 26px;font-size:14.5px;border:none;cursor:pointer;box-shadow:0 4px 18px #6A46F566}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.ghost{background:var(--panel);color:var(--tx) !important;border:1px solid var(--line);box-shadow:none}
+h1{font-size:clamp(22px,4vw,32px);text-align:center;margin:44px 0 8px}
+.lead{text-align:center;color:var(--sub);font-size:14px;margin:0 0 30px}
+.drop{border:2px dashed var(--line);border-radius:16px;background:var(--panel);padding:44px 20px;text-align:center;cursor:pointer;transition:border-color .15s}
+.drop.on{border-color:var(--pu)}
+.panes{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}
+@media(max-width:720px){.panes{grid-template-columns:1fr}}
+.pane{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;text-align:center}
+.pane h3{margin:0 0 10px;font-size:13.5px;color:var(--sub);font-weight:700}
+.cv{background:repeating-conic-gradient(#20242E 0% 25%, #181B22 0% 50%) 0 0/20px 20px;border-radius:8px;min-height:240px;display:grid;place-items:center;overflow:hidden}
+.cv img,.cv canvas{max-width:100%;max-height:360px;height:auto;display:block}
+.meta{font-size:11.5px;color:var(--mut);margin-top:8px}
+.presets{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;justify-content:center}
+.presets button{background:#14161C;border:1px solid var(--line);color:var(--tx);border-radius:10px;padding:9px 16px;font-size:13px;cursor:pointer;font-family:inherit}
+.presets button:hover{border-color:var(--pu)}
+.controls{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-top:16px}
+.controls h3{margin:0 0 14px;font-size:14px}
+.ctrl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px 20px}
+.ctrl{display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--sub)}
+.ctrl .row{display:flex;align-items:center;gap:8px}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{flex:1;background:#14161C;border:1px solid var(--line);color:var(--sub);border-radius:8px;padding:7px 6px;font-size:12px;cursor:pointer;font-family:inherit}
+.seg button.on{background:#2A2F40;border-color:var(--pu);color:var(--tx)}
+input[type=range]{width:100%;accent-color:var(--pu)}
+input[type=color]{width:36px;height:28px;border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:2px;cursor:pointer}
+.actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin:24px 0 10px}
+.note{background:#181C26;border:1px solid var(--line);border-radius:12px;padding:14px 18px;font-size:13px;color:var(--sub);margin:26px 0}
+footer{padding:26px 0 34px;text-align:center;font-size:12px;color:var(--mut);border-top:1px solid #262B38;margin-top:40px}
+footer a{color:var(--sub);text-decoration:none;margin:0 10px}
+.bgchip{width:26px;height:26px;border-radius:6px;border:1px solid var(--line);cursor:pointer}
+.bgchip.on{outline:2px solid var(--pu)}
+</style>
+</head>
+<body>
+<header><div class="wrap nav">
+  <a class="logo" href="/"><svg width="26" height="26" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="#14161C"/><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FFF"/><stop offset="1" stop-color="#8B5CF6"/></linearGradient></defs><path d="M12 24 H28 L42 66 L53 46 L62 58 L77 24 H90 V90 H79 V48 L64 78 L53 63 L44 86 H35 Z" fill="url(#lg)"/></svg>Vectimo</a>
+  <div class="links"><a href="/png-to-svg.html">PNG→SVG</a><a href="/svg-to-png.html">SVG→PNG</a><a class="btn" style="padding:8px 18px;font-size:13px;border-radius:9px" href="/app.html">動画をつくる</a></div>
+</div></header>
+
+<div class="wrap">
+  <h1>透過画像に影・フチを付けて立体加工</h1>
+  <p class="lead">背景が透明なPNG画像に、影や白フチを付けて立体的に仕上げます。すべてブラウザ内で処理され、アップロードはされません。<br>切り抜いた画像が「のっぺり浮いて見える」悩みを解決します。</p>
+
+  <div class="drop" id="drop">
+    <div style="font-size:15px;font-weight:700;margin-bottom:6px">クリックして透過PNGを選択、またはドラッグ＆ドロップ</div>
+    <div style="font-size:12px;color:var(--mut)">背景が透明なPNG画像 ・ ロゴ／切り抜き済み写真／イラストなど</div>
+    <input type="file" id="file" accept="image/png,image/webp" style="display:none">
+  </div>
+
+  <div class="panes" id="panes" style="display:none">
+    <div class="pane"><h3>元画像</h3><div class="cv" id="srcBox"></div><div class="meta" id="srcMeta"></div></div>
+    <div class="pane"><h3>加工後（プレビュー）</h3><div class="cv" id="dstBox"></div><div class="meta" id="dstMeta"></div></div>
+  </div>
+
+  <div class="presets" id="presets" style="display:none">
+    <button data-p="soft">ふんわり影</button>
+    <button data-p="hard">くっきり影</button>
+    <button data-p="sticker">ステッカー風（白フチ＋影）</button>
+    <button data-p="float">浮遊（真下に影）</button>
+  </div>
+
+  <div class="controls" id="controls" style="display:none">
+    <h3>立体加工</h3>
+    <div class="ctrl-grid">
+      <div class="ctrl">
+        <span>効果</span>
+        <div class="seg" id="effect">
+          <button data-v="none">なし</button>
+          <button data-v="shadow" class="on">影</button>
+          <button data-v="stroke">白フチ</button>
+          <button data-v="both">フチ＋影</button>
+        </div>
+      </div>
+      <div class="ctrl" id="c-shadowBlur"><span>影のぼかし <b id="v-blur">18</b>px</span><input type="range" id="shadowBlur" min="0" max="60" value="18"></div>
+      <div class="ctrl" id="c-shadowDist"><span>影の距離 <b id="v-dist">16</b>px</span><input type="range" id="shadowDist" min="0" max="80" value="16"></div>
+      <div class="ctrl" id="c-shadowAngle"><span>影の向き <b id="v-angle">90</b>°</span><input type="range" id="shadowAngle" min="0" max="360" value="90"></div>
+      <div class="ctrl" id="c-shadowOpacity"><span>影の濃さ <b id="v-op">45</b>%</span><input type="range" id="shadowOpacity" min="0" max="100" value="45"></div>
+      <div class="ctrl" id="c-shadowColor"><span>影の色</span><div class="row"><input type="color" id="shadowColor" value="#000000"></div></div>
+      <div class="ctrl" id="c-strokeW"><span>フチの太さ <b id="v-sw">12</b>px</span><input type="range" id="strokeW" min="0" max="40" value="12"></div>
+      <div class="ctrl" id="c-strokeColor"><span>フチの色</span><div class="row"><input type="color" id="strokeColor" value="#FFFFFF"></div></div>
+      <div class="ctrl">
+        <span>プレビュー背景（書き出しは常に透過）</span>
+        <div class="row" id="bgChips">
+          <div class="bgchip on" data-bg="checker" title="透過" style="background:repeating-conic-gradient(#20242E 0 25%,#181B22 0 50%) 0 0/12px 12px"></div>
+          <div class="bgchip" data-bg="#FFFFFF" style="background:#fff"></div>
+          <div class="bgchip" data-bg="#14161C" style="background:#14161C"></div>
+          <div class="bgchip" data-bg="#5FD6C4" style="background:#5FD6C4"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="actions" id="actions" style="display:none">
+    <button class="btn" id="dl">PNGをダウンロード</button>
+    <a class="btn ghost" href="/app.html">Vectimoで動かす →</a>
+    <button class="btn ghost" id="reset">別の画像を選ぶ</button>
+  </div>
+
+  <div class="note">
+    <b>使い方のヒント</b><br>
+    ・このツールは<b>背景が透明なPNG</b>専用です。背景を消したい場合は、先に背景除去ツール（remove.bg など）で透過してからお使いください。<br>
+    ・切り抜いただけの画像はのっぺり見えがちなので、「影」で自然な立体感、「白フチ」でステッカー風に仕上がります。<br>
+    ・書き出すPNGは常に背景が透過です（プレビューの背景色は仕上がりに影響しません）。<br>
+    ・加工した画像は<a href="/app.html">Vectimo</a>に読み込めば、スライドインや拡大など動きを付けて動画にできます。
+  </div>
+</div>
+
+<footer><div class="wrap">
+  <div><a href="/">トップ</a><a href="/app.html">アプリを開く</a><a href="/blog/">ブログ</a><a href="/png-to-svg.html">PNG→SVG変換</a><a href="/svg-to-png.html">SVG→PNG変換</a><a href="/image-shadow.html">画像の立体加工</a><a href="/vectimo-guide.html">使い方ガイド</a></div>
+  <div style="margin-top:10px">© Vectimo</div>
+</div></footer>
+
+<script>
+(function(){
+  let baseImg = null;   // 元の透過画像
+  let srcName = "image";
+  let previewBg = "checker";
+  let effect = "shadow";
+  const $ = (id) => document.getElementById(id);
+  const drop = $("drop"), file = $("file");
+
+  drop.addEventListener("click", () => file.click());
+  drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("on"); });
+  drop.addEventListener("dragleave", () => drop.classList.remove("on"));
+  drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("on"); if (e.dataTransfer.files[0]) handle(e.dataTransfer.files[0]); });
+  file.addEventListener("change", () => { if (file.files[0]) handle(file.files[0]); });
+
+  // 画像に透明ピクセルが含まれるか判定（縁の一定割合が透明なら透過画像とみなす）
+  function hasTransparency(img) {
+    const w = Math.min(img.naturalWidth, 200), h = Math.min(img.naturalHeight, 200);
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    const ctx = c.getContext("2d"); ctx.drawImage(img, 0, 0, w, h);
+    const d = ctx.getImageData(0, 0, w, h).data;
+    let transparent = 0, total = w * h;
+    for (let i = 3; i < d.length; i += 4) if (d[i] < 250) transparent++;
+    return transparent / total > 0.03; // 3%以上が半透明/透明なら透過ありとみなす
+  }
+
+  function handle(f) {
+    srcName = f.name.replace(/\.[^.]+$/, "");
+    const url = URL.createObjectURL(f);
+    const probe = new Image();
+    probe.onload = () => {
+      if (!hasTransparency(probe)) {
+        alert("この画像には透明な部分がないようです。\n\nこのツールは「背景が透明なPNG」専用です。\n先に背景除去ツール（remove.bg など）で背景を透過してからお使いください。");
+        file.value = "";
+        return;
+      }
+      baseImg = probe;
+      $("srcBox").innerHTML = ""; const si = new Image(); si.src = url; $("srcBox").appendChild(si);
+      $("srcMeta").textContent = probe.naturalWidth + "×" + probe.naturalHeight;
+      $("panes").style.display = "grid";
+      $("presets").style.display = "flex";
+      $("controls").style.display = "block";
+      $("actions").style.display = "flex";
+      render();
+    };
+    probe.onerror = () => alert("画像を読み込めませんでした。PNG画像をお試しください。");
+    probe.src = url;
+  }
+
+  function compose() {
+    const iw = baseImg.naturalWidth, ih = baseImg.naturalHeight;
+    const blur = +$("shadowBlur").value, dist = +$("shadowDist").value, angle = +$("shadowAngle").value;
+    const op = +$("shadowOpacity").value / 100, shColor = $("shadowColor").value;
+    const sw = +$("strokeW").value, sc = $("strokeColor").value;
+    const useShadow = effect === "shadow" || effect === "both";
+    const useStroke = effect === "stroke" || effect === "both";
+    const pad = Math.ceil(Math.max(useShadow ? blur + dist : 0, useStroke ? sw : 0) + 6);
+    const W = iw + pad * 2, H = ih + pad * 2;
+    const c = document.createElement("canvas"); c.width = W; c.height = H;
+    const ctx = c.getContext("2d");
+
+    // 1) 影：シルエットをオフセット＋ぼかし
+    if (useShadow && (blur > 0 || dist > 0)) {
+      const rad = angle * Math.PI / 180;
+      const ox = Math.cos(rad) * dist, oy = Math.sin(rad) * dist;
+      const sh = document.createElement("canvas"); sh.width = W; sh.height = H;
+      const sx = sh.getContext("2d");
+      sx.drawImage(baseImg, pad, pad, iw, ih);
+      sx.globalCompositeOperation = "source-in";
+      sx.fillStyle = shColor; sx.fillRect(0, 0, W, H);
+      ctx.save();
+      ctx.globalAlpha = op;
+      ctx.filter = blur > 0 ? `blur(${blur}px)` : "none";
+      ctx.drawImage(sh, ox, oy);
+      ctx.restore();
+    }
+    // 2) 白フチ：全方向にずらして下地を作る
+    if (useStroke && sw > 0) {
+      const st = document.createElement("canvas"); st.width = W; st.height = H;
+      const stx = st.getContext("2d");
+      const steps = 32;
+      for (let i = 0; i < steps; i++) {
+        const a = (i / steps) * Math.PI * 2;
+        stx.drawImage(baseImg, pad + Math.cos(a) * sw, pad + Math.sin(a) * sw, iw, ih);
+      }
+      stx.globalCompositeOperation = "source-in";
+      stx.fillStyle = sc; stx.fillRect(0, 0, W, H);
+      ctx.drawImage(st, 0, 0);
+    }
+    // 3) 本体
+    ctx.drawImage(baseImg, pad, pad, iw, ih);
+    return c;
+  }
+
+  function render() {
+    if (!baseImg) return;
+    const c = compose();
+    const box = $("dstBox");
+    box.style.background = previewBg === "checker"
+      ? "repeating-conic-gradient(#20242E 0 25%,#181B22 0 50%) 0 0/20px 20px"
+      : previewBg;
+    box.innerHTML = ""; box.appendChild(c);
+    $("dstMeta").textContent = c.width + "×" + c.height + " ・ 透過PNG";
+    const showShadow = effect === "shadow" || effect === "both";
+    const showStroke = effect === "stroke" || effect === "both";
+    ["c-shadowBlur","c-shadowDist","c-shadowAngle","c-shadowOpacity","c-shadowColor"].forEach(id => $(id).style.opacity = showShadow ? 1 : .35);
+    ["c-strokeW","c-strokeColor"].forEach(id => $(id).style.opacity = showStroke ? 1 : .35);
+    [...$("effect").children].forEach(x => x.classList.toggle("on", x.dataset.v === effect));
+  }
+
+  // プリセット
+  const PRESETS = {
+    soft:    { effect: "shadow", blur: 28, dist: 12, angle: 90, op: 35 },
+    hard:    { effect: "shadow", blur: 4,  dist: 10, angle: 90, op: 60 },
+    sticker: { effect: "both",   blur: 14, dist: 10, angle: 90, op: 40, sw: 14 },
+    float:   { effect: "shadow", blur: 34, dist: 26, angle: 90, op: 30 },
+  };
+  $("presets").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    const p = PRESETS[b.dataset.p]; if (!p) return;
+    effect = p.effect;
+    if (p.blur != null) { $("shadowBlur").value = p.blur; $("v-blur").textContent = p.blur; }
+    if (p.dist != null) { $("shadowDist").value = p.dist; $("v-dist").textContent = p.dist; }
+    if (p.angle != null) { $("shadowAngle").value = p.angle; $("v-angle").textContent = p.angle; }
+    if (p.op != null) { $("shadowOpacity").value = p.op; $("v-op").textContent = p.op; }
+    if (p.sw != null) { $("strokeW").value = p.sw; $("v-sw").textContent = p.sw; }
+    render();
+  });
+
+  $("effect").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    effect = b.dataset.v; render();
+  });
+  [["shadowBlur","v-blur"],["shadowDist","v-dist"],["shadowAngle","v-angle"],["shadowOpacity","v-op"],["strokeW","v-sw"]].forEach(([id, lbl]) => {
+    $(id).addEventListener("input", () => { $(lbl).textContent = $(id).value; render(); });
+  });
+  $("shadowColor").addEventListener("input", render);
+  $("strokeColor").addEventListener("input", render);
+  $("bgChips").addEventListener("click", (e) => {
+    const chip = e.target.closest(".bgchip"); if (!chip) return;
+    previewBg = chip.dataset.bg;
+    [...$("bgChips").children].forEach(x => x.classList.toggle("on", x === chip));
+    render();
+  });
+  $("dl").addEventListener("click", () => {
+    const c = compose();
+    c.toBlob((b) => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(b); a.download = srcName + "_shadow.png"; a.click();
+    }, "image/png");
+  });
+  $("reset").addEventListener("click", () => {
+    baseImg = null;
+    $("panes").style.display = "none"; $("presets").style.display = "none";
+    $("controls").style.display = "none"; $("actions").style.display = "none";
+    $("srcBox").innerHTML = ""; $("dstBox").innerHTML = "";
+    $("srcMeta").textContent = ""; $("dstMeta").textContent = "";
+    file.value = "";
+    drop.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+})();
+</script>
+</body>
+</html>
