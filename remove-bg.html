@@ -111,6 +111,10 @@ footer a{color:var(--sub);text-decoration:none;margin:0 10px}
       <div class="ctrl" id="c-shadowOpacity"><span>影の濃さ <b id="v-op">45</b>%</span><input type="range" id="shadowOpacity" min="0" max="100" value="45"></div>
       <div class="ctrl" id="c-strokeW"><span>フチの太さ <b id="v-sw">12</b>px</span><input type="range" id="strokeW" min="0" max="40" value="12"></div>
       <div class="ctrl" id="c-strokeColor"><span>フチの色</span><div class="row"><input type="color" id="strokeColor" value="#FFFFFF"></div></div>
+      <div class="ctrl" id="c-trim">
+        <span>フチをすっきり <b id="v-trim">0</b>（半透明のフチを削る）</span>
+        <input type="range" id="edgeTrim" min="0" max="200" value="0">
+      </div>
       <div class="ctrl">
         <span>プレビュー背景（書き出しは常に透過）</span>
         <div class="row" id="bgChips">
@@ -126,6 +130,7 @@ footer a{color:var(--sub);text-decoration:none;margin:0 10px}
   <div class="actions" id="actions" style="display:none">
     <button class="btn" id="dl">透過PNGをダウンロード</button>
     <a class="btn ghost" href="/app.html">Vectimoで動かす →</a>
+    <button class="btn ghost" id="reset">別の画像を選ぶ</button>
   </div>
 
   <div class="note">
@@ -220,8 +225,30 @@ async function handle(f) {
 }
 
 // 加工を反映したcanvasを生成して返す
-function compose() {
+// アルファのしきい値処理（半透明の縁を削って輪郭を締める）。結果をcanvasで返す
+let _trimCache = { t: -1, canvas: null };
+function getTrimmedSource() {
+  const trim = +$("edgeTrim").value;
+  if (trim <= 0) return cutoutImg;
+  if (_trimCache.t === trim && _trimCache.canvas) return _trimCache.canvas;
   const iw = cutoutImg.naturalWidth, ih = cutoutImg.naturalHeight;
+  const c = document.createElement("canvas"); c.width = iw; c.height = ih;
+  const ctx = c.getContext("2d");
+  ctx.drawImage(cutoutImg, 0, 0);
+  const img = ctx.getImageData(0, 0, iw, ih);
+  const d = img.data;
+  // alpha < trim を完全透明に、それ以外はそのまま（境界を引き締める）
+  for (let i = 3; i < d.length; i += 4) {
+    if (d[i] < trim) d[i] = 0;
+  }
+  ctx.putImageData(img, 0, 0);
+  _trimCache = { t: trim, canvas: c };
+  return c;
+}
+
+function compose() {
+  const src = getTrimmedSource();
+  const iw = (src.naturalWidth || src.width), ih = (src.naturalHeight || src.height);
   const blur = +$("shadowBlur").value, dist = +$("shadowDist").value, angle = +$("shadowAngle").value;
   const op = +$("shadowOpacity").value / 100, sw = +$("strokeW").value, sc = $("strokeColor").value;
   const useShadow = effect === "shadow" || effect === "both";
@@ -238,7 +265,7 @@ function compose() {
     const ox = Math.cos(rad) * dist, oy = Math.sin(rad) * dist;
     const sh = document.createElement("canvas"); sh.width = W; sh.height = H;
     const sx = sh.getContext("2d");
-    sx.drawImage(cutoutImg, pad, pad, iw, ih);
+    sx.drawImage(src, pad, pad, iw, ih);
     // シルエット化（アルファを黒に）
     sx.globalCompositeOperation = "source-in";
     sx.fillStyle = "#000"; sx.fillRect(0, 0, W, H);
@@ -256,7 +283,7 @@ function compose() {
     const steps = 32;
     for (let i = 0; i < steps; i++) {
       const a = (i / steps) * Math.PI * 2;
-      stx.drawImage(cutoutImg, pad + Math.cos(a) * sw, pad + Math.sin(a) * sw, iw, ih);
+      stx.drawImage(src, pad + Math.cos(a) * sw, pad + Math.sin(a) * sw, iw, ih);
     }
     stx.globalCompositeOperation = "source-in";
     stx.fillStyle = sc; stx.fillRect(0, 0, W, H);
@@ -264,7 +291,7 @@ function compose() {
   }
 
   // 3) 本体
-  ctx.drawImage(cutoutImg, pad, pad, iw, ih);
+  ctx.drawImage(src, pad, pad, iw, ih);
   return c;
 }
 
@@ -292,7 +319,7 @@ $("effect").addEventListener("click", (e) => {
   render();
 });
 // スライダー・色
-[["shadowBlur","v-blur"],["shadowDist","v-dist"],["shadowAngle","v-angle"],["shadowOpacity","v-op"],["strokeW","v-sw"]].forEach(([id, lbl]) => {
+[["shadowBlur","v-blur"],["shadowDist","v-dist"],["shadowAngle","v-angle"],["shadowOpacity","v-op"],["strokeW","v-sw"],["edgeTrim","v-trim"]].forEach(([id, lbl]) => {
   $(id).addEventListener("input", () => { $(lbl).textContent = $(id).value; render(); });
 });
 $("strokeColor").addEventListener("input", render);
@@ -310,6 +337,19 @@ $("dl").addEventListener("click", () => {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(b); a.download = srcName + "_cutout.png"; a.click();
   }, "image/png");
+});
+// 別の画像を選ぶ（状態をリセット）
+$("reset").addEventListener("click", () => {
+  cutoutImg = null;
+  _trimCache = { t: -1, canvas: null };
+  $("panes").style.display = "none";
+  $("controls").style.display = "none";
+  $("actions").style.display = "none";
+  $("srcBox").innerHTML = ""; $("dstBox").innerHTML = "";
+  $("srcMeta").textContent = ""; $("dstMeta").textContent = "";
+  $("edgeTrim").value = 0; $("v-trim").textContent = "0";
+  file.value = "";
+  drop.scrollIntoView({ behavior: "smooth", block: "center" });
 });
 </script>
 </body>
