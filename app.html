@@ -5244,6 +5244,29 @@ function scalePartAt(svgText, uid, factor) {
   if (!parsed.root.getAttribute("xmlns")) parsed.root.setAttribute("xmlns", SVGNS);
   return new XMLSerializer().serializeToString(parsed.root);
 }
+function transformPartScaleXY(svgText, uid, sx, sy, anchorRelX, anchorRelY) {
+  const parsed = parseSvg(svgText);
+  if (parsed.error) return svgText;
+  const el = parsed.children[+uid.slice(1)];
+  if (!el) return svgText;
+  let bb = measurePartBBox(svgText, uid);
+  if (!bb) {
+    const box = el.tagName === "rect" || el.tagName === "image" ? el : el.querySelector("rect,image");
+    if (box) bb = {
+      x: +box.getAttribute("x") || 0,
+      y: +box.getAttribute("y") || 0,
+      w: +box.getAttribute("width") || 0,
+      h: +box.getAttribute("height") || 0
+    };
+  }
+  if (!bb || !bb.w && !bb.h) return svgText;
+  const ax = +(bb.x + bb.w * anchorRelX).toFixed(2);
+  const ay = +(bb.y + bb.h * anchorRelY).toFixed(2);
+  const t = el.getAttribute("transform") || "";
+  el.setAttribute("transform", `translate(${ax} ${ay}) scale(${sx.toFixed(4)} ${sy.toFixed(4)}) translate(${-ax} ${-ay})${t ? " " + t : ""}`);
+  if (!parsed.root.getAttribute("xmlns")) parsed.root.setAttribute("xmlns", SVGNS);
+  return new XMLSerializer().serializeToString(parsed.root);
+}
 function hookCountUps(container) {
   if (!container) return;
   container.querySelectorAll("[data-countup-target]").forEach(tx => {
@@ -8042,7 +8065,7 @@ function SvgMotionStudio() {
     videos: scene.videoParts,
     sceneDuration: scene.duration,
     snapshotT: seekT,
-    highlightUid: selected?.startsWith("p") ? selected : null,
+    highlightUid: null,
     highlightUids: multiSel,
     overlays: scene.overlays
   }) : "", [scene?.svgText, settings, playing, playKey, frame, scene?.videoParts, scene?.duration, seekT, selected, multiSel, scene?.overlays]);
@@ -8461,30 +8484,50 @@ function SvgMotionStudio() {
     if (!r.width || !r.height) return null;
     const left = r.left - hr.left,
       top = r.top - hr.top;
-    const corners = [["nw", 0, 0], ["ne", r.width, 0], ["sw", 0, r.height], ["se", r.width, r.height]];
-    const startResize = (e, corner) => {
+    const HANDLES = [["nw", 0, 0, "nwse-resize", -1, -1], ["n", r.width / 2, 0, "ns-resize", 0, -1], ["ne", r.width, 0, "nesw-resize", +1, -1], ["e", r.width, r.height / 2, "ew-resize", +1, 0], ["se", r.width, r.height, "nwse-resize", +1, +1], ["s", r.width / 2, r.height, "ns-resize", 0, +1], ["sw", 0, r.height, "nesw-resize", -1, +1], ["w", 0, r.height / 2, "ew-resize", -1, 0]];
+    const startResize = (e, hx, hy) => {
       e.stopPropagation();
       e.preventDefault();
-      const cx = r.left + r.width / 2,
-        cy = r.top + r.height / 2;
-      const d0 = Math.hypot(e.clientX - cx, e.clientY - cy) || 1;
+      const w0 = r.width,
+        h0 = r.height;
+      const isCorner = hx !== 0 && hy !== 0;
+      const alt = e.altKey;
+      const anchorRelX = alt ? 0.5 : hx > 0 ? 0 : hx < 0 ? 1 : 0.5;
+      const anchorRelY = alt ? 0.5 : hy > 0 ? 0 : hy < 0 ? 1 : 0.5;
+      const ancScreenX = r.left + w0 * anchorRelX;
+      const ancScreenY = r.top + h0 * anchorRelY;
+      const startDX = Math.max(1, Math.abs(r.left + w0 * (hx > 0 ? 1 : hx < 0 ? 0 : 0.5) - ancScreenX));
+      const startDY = Math.max(1, Math.abs(r.top + h0 * (hy > 0 ? 1 : hy < 0 ? 0 : 0.5) - ancScreenY));
       partResizeRef.current = {
         uid: selected,
-        cx,
-        cy,
-        d0,
-        factor: 1
+        sx: 1,
+        sy: 1,
+        anchorRelX,
+        anchorRelY
       };
       const onMove = ev => {
         const pr = partResizeRef.current;
         if (!pr) return;
-        const d = Math.hypot(ev.clientX - pr.cx, ev.clientY - pr.cy);
-        pr.factor = Math.max(0.1, Math.min(8, d / pr.d0));
+        let sx = 1,
+          sy = 1;
+        if (hx !== 0) sx = Math.abs(ev.clientX - ancScreenX) / startDX;
+        if (hy !== 0) sy = Math.abs(ev.clientY - ancScreenY) / startDY;
+        if (isCorner) {
+          if (!ev.shiftKey) {
+            const s = Math.max(sx, sy);
+            sx = s;
+            sy = s;
+          }
+        }
+        sx = Math.max(0.1, Math.min(10, sx));
+        sy = Math.max(0.1, Math.min(10, sy));
+        pr.sx = sx;
+        pr.sy = sy;
         const g = host.querySelector(`[data-part="${pr.uid}"]`);
         if (g) {
           g.style.transformBox = "fill-box";
-          g.style.transformOrigin = "center";
-          g.style.transform = `scale(${pr.factor})`;
+          g.style.transformOrigin = `${pr.anchorRelX * 100}% ${pr.anchorRelY * 100}%`;
+          g.style.transform = `scale(${sx} ${sy})`;
         }
         setResizeTick(t => t + 1);
       };
@@ -8495,33 +8538,48 @@ function SvgMotionStudio() {
         partResizeRef.current = null;
         const g = host.querySelector(`[data-part="${pr.uid}"]`);
         if (g) g.style.transform = "";
-        if (pr && Math.abs(pr.factor - 1) > 0.01) {
+        if (pr && (Math.abs(pr.sx - 1) > 0.01 || Math.abs(pr.sy - 1) > 0.01)) {
           const sceneId = scene.id,
             uid = pr.uid,
-            factor = pr.factor;
+            sx = pr.sx,
+            sy = pr.sy,
+            arx = pr.anchorRelX,
+            ary = pr.anchorRelY;
           setScenesH(sc => sc.map(s => s.id === sceneId ? {
             ...s,
-            svgText: scalePartAt(s.svgText, uid, factor)
+            svgText: transformPartScaleXY(s.svgText, uid, sx, sy, arx, ary)
           } : s));
         }
       };
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
     };
-    return React.createElement(React.Fragment, null, corners.map(([pos, dx, dy]) => React.createElement("div", {
+    return React.createElement(React.Fragment, null, React.createElement("div", {
+      style: {
+        position: "absolute",
+        left,
+        top,
+        width: r.width,
+        height: r.height,
+        border: "1.5px solid #8B7CFF",
+        zIndex: 6,
+        pointerEvents: "none",
+        boxSizing: "border-box"
+      }
+    }), HANDLES.map(([pos, dx, dy, cur, hx, hy]) => React.createElement("div", {
       key: pos,
-      onPointerDown: e => startResize(e, pos),
+      onPointerDown: e => startResize(e, hx, hy),
       style: {
         position: "absolute",
         left: left + dx - 6,
         top: top + dy - 6,
         width: 12,
         height: 12,
-        background: "#8B7CFF",
-        border: "2px solid #fff",
-        borderRadius: 3,
+        background: "#fff",
+        border: "2px solid #8B7CFF",
+        borderRadius: 2,
         zIndex: 7,
-        cursor: pos === "nw" || pos === "se" ? "nwse-resize" : "nesw-resize",
+        cursor: cur,
         touchAction: "none",
         boxShadow: "0 1px 4px #0006"
       }
