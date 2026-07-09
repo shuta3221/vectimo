@@ -112,8 +112,8 @@ footer a{color:var(--sub);text-decoration:none;margin:0 10px}
       <div class="ctrl" id="c-strokeW"><span>フチの太さ <b id="v-sw">12</b>px</span><input type="range" id="strokeW" min="0" max="40" value="12"></div>
       <div class="ctrl" id="c-strokeColor"><span>フチの色</span><div class="row"><input type="color" id="strokeColor" value="#FFFFFF"></div></div>
       <div class="ctrl" id="c-trim">
-        <span>フチをすっきり <b id="v-trim">0</b>（半透明のフチを削る）</span>
-        <input type="range" id="edgeTrim" min="0" max="200" value="0">
+        <span>フチをすっきり <b id="v-trim">30</b>（半透明のフチを削る）</span>
+        <input type="range" id="edgeTrim" min="0" max="200" value="30">
       </div>
       <div class="ctrl">
         <span>プレビュー背景（書き出しは常に透過）</span>
@@ -197,7 +197,9 @@ async function handle(f) {
   try {
     const removeBg = await ensureLib();
     const blob = await removeBg(f, {
-      output: { format: "image/png" },
+      // isnet_fp16＝ライセンスがクリーンで高精度なモデル。解像度を上げて輪郭精度を改善
+      model: "isnet_fp16",
+      output: { format: "image/png", quality: 1.0 },
       progress: (key, current, total) => {
         const pct = total ? Math.round((current / total) * 100) : 0;
         if (String(key).includes("fetch") || String(key).includes("download")) {
@@ -347,7 +349,7 @@ $("reset").addEventListener("click", () => {
   $("actions").style.display = "none";
   $("srcBox").innerHTML = ""; $("dstBox").innerHTML = "";
   $("srcMeta").textContent = ""; $("dstMeta").textContent = "";
-  $("edgeTrim").value = 0; $("v-trim").textContent = "0";
+  $("edgeTrim").value = 30; $("v-trim").textContent = "30";
   file.value = "";
   drop.scrollIntoView({ behavior: "smooth", block: "center" });
 });
