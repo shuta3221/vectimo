@@ -4430,11 +4430,39 @@ function setPartFont(svgText, uid, fontKey) {
   const el = parsed.children[+uid.slice(1)];
   if (!el) return svgText;
   const css = (OV_FONTS[fontKey] || OV_FONTS.notoSansJP).css;
-  const texts = el.tagName === "text" ? [el] : Array.from(el.querySelectorAll("text"));
-  texts.forEach(tx => {
-    tx.setAttribute("font-family", css);
+  const targets = [];
+  const collect = node => {
+    if (node.tagName === "text" || node.tagName === "tspan") targets.push(node);
+  };
+  if (el.tagName === "text") {
+    collect(el);
+    el.querySelectorAll("tspan").forEach(collect);
+  } else {
+    el.querySelectorAll("text,tspan").forEach(collect);
+  }
+  const usedClasses = new Set();
+  targets.forEach(tx => {
     tx.setAttribute("data-font", fontKey);
+    const st = (tx.getAttribute("style") || "").replace(/font-family\s*:[^;]*;?/gi, "").trim();
+    tx.setAttribute("style", (st ? st.endsWith(";") ? st : st + ";" : "") + "font-family:" + css + ";");
+    tx.setAttribute("font-family", css);
+    const cl = tx.getAttribute("class");
+    if (cl) cl.split(/\s+/).filter(Boolean).forEach(c => usedClasses.add(c));
   });
+  if (usedClasses.size) {
+    const styleEls = Array.from(parsed.root.querySelectorAll("style"));
+    styleEls.forEach(se => {
+      let cssText = se.textContent;
+      cssText = cssText.replace(/([^{}]+)\{([^}]*)\}/g, (block, selector, body) => {
+        const hit = [...usedClasses].some(c => new RegExp("\\." + c.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&") + "(?![\\w-])").test(selector));
+        if (!hit) return block;
+        let nb = body;
+        if (/font-family\s*:/i.test(nb)) nb = nb.replace(/font-family\s*:[^;}]*;?/gi, "font-family:" + css + ";");else nb = "font-family:" + css + ";" + nb;
+        return selector + "{" + nb + "}";
+      });
+      se.textContent = cssText;
+    });
+  }
   if (!parsed.root.getAttribute("xmlns")) parsed.root.setAttribute("xmlns", "http://www.w3.org/2000/svg");
   return new XMLSerializer().serializeToString(parsed.root);
 }
@@ -8491,9 +8519,33 @@ function SvgMotionStudio() {
     const host = previewHostRef.current;
     const wrap = previewWrapRef.current;
     if (!host || !wrap) return null;
+    const svgEl = host.querySelector("svg");
     const el = host.querySelector(`[data-part="${selected}"]`);
-    if (!el || !el.getBoundingClientRect) return null;
-    const r = el.getBoundingClientRect();
+    if (!svgEl || !el || !el.getBBox) return null;
+    let r;
+    try {
+      const b = el.getBBox();
+      const m = el.getScreenCTM();
+      if (!m) return null;
+      const corners = [[b.x, b.y], [b.x + b.width, b.y], [b.x, b.y + b.height], [b.x + b.width, b.y + b.height]].map(([x, y]) => ({
+        x: m.a * x + m.c * y + m.e,
+        y: m.b * x + m.d * y + m.f
+      }));
+      const xs = corners.map(p => p.x),
+        ys = corners.map(p => p.y);
+      const minX = Math.min(...xs),
+        minY = Math.min(...ys),
+        maxX = Math.max(...xs),
+        maxY = Math.max(...ys);
+      r = {
+        left: minX,
+        top: minY,
+        width: maxX - minX,
+        height: maxY - minY
+      };
+    } catch (e) {
+      return null;
+    }
     const hr = wrap.getBoundingClientRect();
     if (!r.width || !r.height) return null;
     const left = r.left - hr.left,
@@ -11930,10 +11982,19 @@ function SvgMotionStudio() {
     onClick: () => setHintsDone(true)
   }, "\u9589\u3058\u308B")), React.createElement("div", {
     ref: previewWrapRef,
-    className: pvZoom === "fit" ? "" : "pv-scroll",
     style: {
       ...S.previewWrap,
-      position: "relative"
+      position: "relative",
+      overflow: "hidden"
+    }
+  }, React.createElement("div", {
+    className: pvZoom === "fit" ? "" : "pv-scroll",
+    style: {
+      position: "absolute",
+      inset: 0,
+      display: "grid",
+      placeItems: "center",
+      overflow: pvZoom === "fit" ? "hidden" : "auto"
     }
   }, React.createElement("div", {
     className: "pv-vguide",
@@ -11997,7 +12058,7 @@ function SvgMotionStudio() {
       lineHeight: 1.5,
       backdropFilter: "blur(4px)"
     }
-  }, "\u30C9\u30E9\u30C3\u30B0\u3067\u79FB\u52D5 \u30FB Ctrl+\u30DB\u30A4\u30FC\u30EB\uFF0F\u30D4\u30F3\u30C1\u3067\u62E1\u5927\u7E2E\u5C0F"), !pvModal && previewBoxEl, !pvModal && React.createElement(ResizeHandles, null)), React.createElement("div", {
+  }, "\u30C9\u30E9\u30C3\u30B0\u3067\u79FB\u52D5 \u30FB Ctrl+\u30DB\u30A4\u30FC\u30EB\uFF0F\u30D4\u30F3\u30C1\u3067\u62E1\u5927\u7E2E\u5C0F"), !pvModal && previewBoxEl), !pvModal && React.createElement(ResizeHandles, null)), React.createElement("div", {
     style: S.controls
   }, React.createElement("button", {
     className: "btn",
