@@ -2672,7 +2672,7 @@ const defaultImgSetting = () => ({
 });
 const SVGNS = "http://www.w3.org/2000/svg";
 const XHTML = "http://www.w3.org/1999/xhtml";
-const APP_BUILD = "2026-07-10.3";
+const APP_BUILD = "2026-07-10.4";
 const Icon = ({
   name,
   size = 16,
@@ -5261,6 +5261,65 @@ function normalizeSvgFonts(svgText) {
     keys: [...foundKeys]
   };
 }
+function groupPartsInSvg(svgText, indices) {
+  const parsed = parseSvg(svgText);
+  if (parsed.error || indices.length < 2) return null;
+  const sorted = [...indices].sort((a, b) => a - b);
+  const els = sorted.map(i => parsed.children[i]).filter(Boolean);
+  if (els.length !== sorted.length) return null;
+  const doc = parsed.root.ownerDocument;
+  const g = doc.createElementNS(SVGNS, "g");
+  g.setAttribute("data-sid", `grp${Date.now().toString(36)}${Math.floor(Math.random() * 1000)}`);
+  g.setAttribute("data-group", "1");
+  const parent = els[0].parentNode;
+  parent.insertBefore(g, els[0]);
+  els.forEach(el => g.appendChild(el));
+  const groupedSet = new Set(sorted);
+  const mapping = {};
+  let newIdx = 0;
+  let groupIndex = -1;
+  const total = parsed.children.length + sorted.length - 1;
+  for (let old = 0; old < total; old++) {
+    if (old === sorted[0]) {
+      groupIndex = newIdx;
+      newIdx++;
+      continue;
+    }
+    if (groupedSet.has(old)) continue;
+    mapping[old] = newIdx;
+    newIdx++;
+  }
+  if (!parsed.root.getAttribute("xmlns")) parsed.root.setAttribute("xmlns", SVGNS);
+  return {
+    text: new XMLSerializer().serializeToString(parsed.root),
+    groupIndex,
+    mapping,
+    groupedCount: sorted.length
+  };
+}
+function ungroupPartInSvg(svgText, index) {
+  const parsed = parseSvg(svgText);
+  if (parsed.error) return null;
+  const g = parsed.children[index];
+  if (!g || g.tagName !== "g") return null;
+  const kids = Array.from(g.children).filter(el => !["defs", "style", "title", "desc"].includes(el.tagName));
+  if (kids.length < 1) return null;
+  const gt = g.getAttribute("transform") || "";
+  const parent = g.parentNode;
+  kids.forEach(k => {
+    if (gt) {
+      const kt = k.getAttribute("transform") || "";
+      k.setAttribute("transform", (gt + " " + kt).trim());
+    }
+    parent.insertBefore(k, g);
+  });
+  parent.removeChild(g);
+  if (!parsed.root.getAttribute("xmlns")) parsed.root.setAttribute("xmlns", SVGNS);
+  return {
+    text: new XMLSerializer().serializeToString(parsed.root),
+    childCount: kids.length
+  };
+}
 function scopeSvgStyles(svgText) {
   if (!/<style[\s>]/i.test(svgText)) return svgText;
   const tok = "v" + Math.random().toString(36).slice(2, 7);
@@ -7763,6 +7822,12 @@ function SvgMotionStudio() {
       } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "z" || (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
         e.preventDefault();
         redo();
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === "g" || e.key === "G")) {
+        const t = e.target;
+        const tag = (t.tagName || "").toLowerCase();
+        if (tag === "input" || tag === "textarea" || tag === "select" || t.isContentEditable) return;
+        e.preventDefault();
+        if (e.shiftKey) ungroupSelectedRef.current();else groupSelectedRef.current();
       } else if (e.key === "Delete" || e.key === "Backspace") {
         const t = e.target;
         const tag = (t.tagName || "").toLowerCase();
@@ -7843,6 +7908,62 @@ function SvgMotionStudio() {
     showToast("パーツを削除しました（Ctrl+Zで戻せます）");
   };
   deletePartRef.current = deletePart;
+  const multiSelRef = useRef([]);
+  multiSelRef.current = multiSel;
+  const groupSelectedRef = useRef(() => {});
+  groupSelectedRef.current = () => {
+    const sel = selectedRef.current,
+      ms = multiSelRef.current;
+    if (!scene || !sel || !sel.startsWith("p") || !ms.length) {
+      showToast("Shift＋クリックで2つ以上選択してからグループ化してください");
+      return;
+    }
+    const indices = [sel, ...ms].map(u => +u.slice(1));
+    const res = groupPartsInSvg(scene.svgText, indices);
+    if (!res) return;
+    const ns = {};
+    Object.entries(res.mapping).forEach(([oldIdx, newIdx]) => {
+      if (scene.settings[`p${oldIdx}`]) ns[`p${newIdx}`] = scene.settings[`p${oldIdx}`];
+    });
+    ns[`p${res.groupIndex}`] = scene.settings[sel] || defaultSetting();
+    setScenesH(sc => sc.map(s => s.id === scene.id ? {
+      ...s,
+      svgText: res.text,
+      settings: ns
+    } : s));
+    setSelected(`p${res.groupIndex}`);
+    setMultiSel([]);
+    showToast(`✔ ${res.groupedCount}個のパーツをグループ化しました（Ctrl+Shift+Gで解除）`);
+  };
+  const ungroupSelectedRef = useRef(() => {});
+  ungroupSelectedRef.current = () => {
+    const sel = selectedRef.current;
+    if (!scene || !sel || !sel.startsWith("p")) return;
+    const idx = +sel.slice(1);
+    const res = ungroupPartInSvg(scene.svgText, idx);
+    if (!res) {
+      showToast("このパーツはグループ解除できません");
+      return;
+    }
+    const ns = {};
+    const groupSetting = scene.settings[sel] || defaultSetting();
+    Object.entries(scene.settings).forEach(([uid, st]) => {
+      const i = +uid.slice(1);
+      if (i < idx) ns[uid] = st;else if (i === idx) {
+        for (let k = 0; k < res.childCount; k++) ns[`p${idx + k}`] = {
+          ...groupSetting
+        };
+      } else ns[`p${i + res.childCount - 1}`] = st;
+    });
+    setScenesH(sc => sc.map(s => s.id === scene.id ? {
+      ...s,
+      svgText: res.text,
+      settings: ns
+    } : s));
+    setSelected(`p${idx}`);
+    setMultiSel([]);
+    showToast(`✔ グループを解除しました（${res.childCount}個のパーツ）`);
+  };
   const deleteOverlayRef = useRef(() => {});
   deleteOverlayRef.current = oi => {
     if (!scene) return;
@@ -8109,16 +8230,20 @@ function SvgMotionStudio() {
     probe.src = src;
   };
   const update = useCallback((uid, patch) => {
-    updateScene(scene.id, {
-      settings: {
-        ...scene.settings,
-        [uid]: {
-          ...scene.settings[uid],
-          ...patch
-        }
-      }
+    const targets = uid === selected && multiSel.length ? [uid, ...multiSel] : [uid];
+    const ns = {
+      ...scene.settings
+    };
+    targets.forEach(u => {
+      ns[u] = {
+        ...ns[u],
+        ...patch
+      };
     });
-  }, [scene, updateScene]);
+    updateScene(scene.id, {
+      settings: ns
+    });
+  }, [scene, updateScene, selected, multiSel]);
   const ANIM_KEYS = ["type", "duration", "delay", "easing", "distance", "scaleTo", "loop", "exit", "img", "opacity"];
   const pickAnim = s => {
     const o = {};
@@ -10085,12 +10210,28 @@ function SvgMotionStudio() {
       },
       onClick: () => doAlign("center")
     }, multiSel.length ? "＋ 基準パーツの中央に揃える" : "＋ 画面の中央に配置"));
-  })(), React.createElement("p", {
+  })(), multiSel.length > 0 && React.createElement("button", {
+    className: "btn",
+    style: {
+      ...S.ghostBtn,
+      padding: "7px 8px",
+      fontSize: 11.5
+    },
+    onClick: () => groupSelectedRef.current()
+  }, "\u229E \u9078\u629E\u3057\u305F", multiSel.length + 1, "\u500B\u3092\u30B0\u30EB\u30FC\u30D7\u5316\uFF08Ctrl+G\uFF09"), !multiSel.length && parsed.parts.find(p => p.uid === selected)?.tag === "g" && React.createElement("button", {
+    className: "btn",
+    style: {
+      ...S.ghostBtn,
+      padding: "7px 8px",
+      fontSize: 11.5
+    },
+    onClick: () => ungroupSelectedRef.current()
+  }, "\u229F \u30B0\u30EB\u30FC\u30D7\u3092\u89E3\u9664\uFF08Ctrl+Shift+G\uFF09"), React.createElement("p", {
     style: {
       ...S.hint,
       marginTop: 0
     }
-  }, "Shift\uFF0B\u30AF\u30EA\u30C3\u30AF\u3067\u8907\u6570\u9078\u629E\u3002\u6700\u521D\u306B\u9078\u3093\u3060\u30D1\u30FC\u30C4\u304C\u57FA\u6E96\u306B\u306A\u308A\u307E\u3059\u3002")), React.createElement("button", {
+  }, "Shift\uFF0B\u30AF\u30EA\u30C3\u30AF\u3067\u8907\u6570\u9078\u629E\u3002\u6700\u521D\u306B\u9078\u3093\u3060\u30D1\u30FC\u30C4\u304C\u57FA\u6E96\u3002\u8907\u6570\u9078\u629E\u4E2D\u306F\u52D5\u304D\u306E\u5909\u66F4\u304C\u5168\u54E1\u306B\u53CD\u6620\u3055\u308C\u307E\u3059\u3002")), React.createElement("button", {
     className: "btn",
     style: {
       ...S.ghostBtn,
