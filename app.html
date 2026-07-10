@@ -5222,6 +5222,44 @@ function ensureSvgSize(svgText) {
   const newTag = tag.replace(/<svg/, `<svg width="${vb[1]}" height="${vb[2]}"`);
   return svgText.replace(tag, newTag);
 }
+const FONT_FAMILY_TO_KEY = (() => {
+  const map = {};
+  Object.entries(OV_FONTS).forEach(([k, f]) => {
+    const fam = f.css.split(",")[0].replace(/['"]/g, "").trim().toLowerCase();
+    map[fam] = k;
+    if (f.web) map[f.web.split(":")[0].toLowerCase()] = k;
+  });
+  return map;
+})();
+function normalizeSvgFonts(svgText) {
+  const foundKeys = new Set();
+  const replaceFontValue = val => {
+    const parts = val.split(",").map(s => s.trim().replace(/['"]/g, ""));
+    for (const p of parts) {
+      const key = FONT_FAMILY_TO_KEY[p.toLowerCase()];
+      if (key) {
+        foundKeys.add(key);
+        return OV_FONTS[key].css;
+      }
+    }
+    return null;
+  };
+  let out = svgText;
+  out = out.replace(/font-family\s*:\s*([^;}]+)/gi, (m, val) => {
+    const rep = replaceFontValue(val);
+    return rep ? `font-family:${rep}` : m;
+  });
+  out = out.replace(/font-family\s*=\s*"([^"]+)"/gi, (m, val) => {
+    const rep = replaceFontValue(val);
+    return rep ? `font-family="${rep.replace(/"/g, "'")}"` : m;
+  });
+  out = out.replace(/font-variation-settings\s*:[^;}]*;?/gi, "");
+  out = out.replace(/isolation\s*:\s*isolate\s*;?/gi, "");
+  return {
+    text: out,
+    keys: [...foundKeys]
+  };
+}
 function removePartFromSvg(svgText, uid) {
   const parsed = parseSvg(svgText);
   if (parsed.error) return svgText;
@@ -7808,7 +7846,7 @@ function SvgMotionStudio() {
       const raw = window.localStorage?.getItem("vectimo_import");
       if (!raw) return;
       window.localStorage.removeItem("vectimo_import");
-      const text = ensureSvgSize(autoGroupManyParts(raw));
+      const text = normalizeSvgFonts(ensureSvgSize(autoGroupManyParts(raw))).text;
       const settings = initSettings(text);
       const sc = {
         id: newSceneId(),
@@ -8769,7 +8807,7 @@ function SvgMotionStudio() {
         const r = new FileReader();
         r.onload = () => res({
           name: f.name.replace(/\.svg$/i, ""),
-          text: ensureSvgSize(autoGroupManyParts(String(r.result))),
+          text: normalizeSvgFonts(ensureSvgSize(autoGroupManyParts(String(r.result)))).text,
           kind: "svg"
         });
         r.onerror = () => res(null);
