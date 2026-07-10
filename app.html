@@ -2672,6 +2672,7 @@ const defaultImgSetting = () => ({
 });
 const SVGNS = "http://www.w3.org/2000/svg";
 const XHTML = "http://www.w3.org/1999/xhtml";
+const APP_BUILD = "2026-07-10.2";
 const Icon = ({
   name,
   size = 16,
@@ -5260,6 +5261,32 @@ function normalizeSvgFonts(svgText) {
     keys: [...foundKeys]
   };
 }
+function scopeSvgStyles(svgText) {
+  if (!/<style[\s>]/i.test(svgText)) return svgText;
+  const tok = "v" + Math.random().toString(36).slice(2, 7);
+  let out = svgText;
+  const classSet = new Set();
+  out = out.replace(/<style([^>]*)>([\s\S]*?)<\/style>/gi, (m, a, css) => {
+    const newCss = css.replace(/\.([A-Za-z_][\w-]*)/g, (mm, c) => {
+      classSet.add(c);
+      return "." + tok + c;
+    });
+    return "<style" + a + ">" + newCss + "</style>";
+  });
+  if (classSet.size) {
+    out = out.replace(/class="([^"]*)"/g, (m, val) => 'class="' + val.split(/\s+/).map(c => classSet.has(c) ? tok + c : c).join(" ") + '"');
+  }
+  const refIds = new Set();
+  for (const m of out.matchAll(/url\(#([\w-]+)\)/g)) refIds.add(m[1]);
+  for (const m of out.matchAll(/(?:xlink:href|href)="#([\w-]+)"/g)) refIds.add(m[1]);
+  refIds.forEach(id => {
+    const nid = tok + id;
+    out = out.split("url(#" + id + ")").join("url(#" + nid + ")");
+    out = out.split('href="#' + id + '"').join('href="#' + nid + '"');
+    out = out.split('id="' + id + '"').join('id="' + nid + '"');
+  });
+  return out;
+}
 function removePartFromSvg(svgText, uid) {
   const parsed = parseSvg(svgText);
   if (parsed.error) return svgText;
@@ -7846,7 +7873,7 @@ function SvgMotionStudio() {
       const raw = window.localStorage?.getItem("vectimo_import");
       if (!raw) return;
       window.localStorage.removeItem("vectimo_import");
-      const text = normalizeSvgFonts(ensureSvgSize(autoGroupManyParts(raw))).text;
+      const text = scopeSvgStyles(normalizeSvgFonts(ensureSvgSize(autoGroupManyParts(raw))).text);
       const settings = initSettings(text);
       const sc = {
         id: newSceneId(),
@@ -7930,7 +7957,7 @@ function SvgMotionStudio() {
         videoParts: s.videoParts || {},
         audios: s.audios || [],
         ...s,
-        svgText: s.svgText ? normalizeSvgFonts(s.svgText).text : s.svgText
+        svgText: s.svgText ? scopeSvgStyles(normalizeSvgFonts(s.svgText).text) : s.svgText
       }));
       setScenesH(loaded);
       if (data.frame) setFrame(data.frame);
@@ -8587,8 +8614,8 @@ function SvgMotionStudio() {
     }
     const hr = wrap.getBoundingClientRect();
     if (!r.width || !r.height) return null;
-    const left = r.left - hr.left,
-      top = r.top - hr.top;
+    const left = r.left - hr.left + (wrap.scrollLeft || 0),
+      top = r.top - hr.top + (wrap.scrollTop || 0);
     const HANDLES = [["nw", 0, 0, "nwse-resize", -1, -1], ["n", r.width / 2, 0, "ns-resize", 0, -1], ["ne", r.width, 0, "nesw-resize", +1, -1], ["e", r.width, r.height / 2, "ew-resize", +1, 0], ["se", r.width, r.height, "nwse-resize", +1, +1], ["s", r.width / 2, r.height, "ns-resize", 0, +1], ["sw", 0, r.height, "nesw-resize", -1, +1], ["w", 0, r.height / 2, "ew-resize", -1, 0]];
     const startResize = (e, hx, hy) => {
       e.stopPropagation();
@@ -8808,7 +8835,7 @@ function SvgMotionStudio() {
         const r = new FileReader();
         r.onload = () => res({
           name: f.name.replace(/\.svg$/i, ""),
-          text: normalizeSvgFonts(ensureSvgSize(autoGroupManyParts(String(r.result)))).text,
+          text: scopeSvgStyles(normalizeSvgFonts(ensureSvgSize(autoGroupManyParts(String(r.result)))).text),
           kind: "svg"
         });
         r.onerror = () => res(null);
@@ -9191,7 +9218,7 @@ function SvgMotionStudio() {
         const loaded = data.scenes.map(s => {
           const audios = (s.audios || []).filter(a => a.src && a.src.startsWith("data:"));
           const videoParts = Object.fromEntries(Object.entries(s.videoParts || {}).filter(([, v]) => v.src && v.src.startsWith("data:")));
-          const svgN = s.svgText ? normalizeSvgFonts(s.svgText).text : s.svgText;
+          const svgN = s.svgText ? scopeSvgStyles(normalizeSvgFonts(s.svgText).text) : s.svgText;
           return {
             id: newSceneId(),
             name: s.name,
@@ -11070,7 +11097,6 @@ function SvgMotionStudio() {
         .pv-scroll{overflow:auto;scrollbar-width:none;-ms-overflow-style:none}
         .pv-scroll::-webkit-scrollbar{display:none}
         .previewBox{display:grid;place-items:center}
-        .previewBox.pv-fit{width:100%;height:100%}
         .previewBox.pv-fit svg{width:auto;height:auto;max-width:100%;max-height:100%;display:block}
         .pv-modal .previewBox{max-height:100%}
         .pv-modal .previewBox svg{max-height:calc(100vh - 110px) !important;max-width:calc(100vw - 60px) !important}
@@ -11098,6 +11124,14 @@ function SvgMotionStudio() {
   }), React.createElement("span", {
     style: S.logo
   }, "Vectimo"), React.createElement("span", {
+    title: "\u30D3\u30EB\u30C9\u756A\u53F7\uFF08\u66F4\u65B0\u306E\u53CD\u6620\u78BA\u8A8D\u7528\uFF09",
+    style: {
+      fontSize: 9.5,
+      color: "#5C6373",
+      marginLeft: 6,
+      letterSpacing: 0.5
+    }
+  }, "build ", APP_BUILD), React.createElement("span", {
     style: {
       fontSize: 10.5,
       color: "#5C6373",
@@ -12023,19 +12057,10 @@ function SvgMotionStudio() {
     onClick: () => setHintsDone(true)
   }, "\u9589\u3058\u308B")), React.createElement("div", {
     ref: previewWrapRef,
-    style: {
-      ...S.previewWrap,
-      position: "relative",
-      overflow: "hidden"
-    }
-  }, React.createElement("div", {
     className: pvZoom === "fit" ? "" : "pv-scroll",
     style: {
-      position: "absolute",
-      inset: 0,
-      display: "grid",
-      placeItems: "center",
-      overflow: pvZoom === "fit" ? "hidden" : "auto"
+      ...S.previewWrap,
+      position: "relative"
     }
   }, React.createElement("div", {
     className: "pv-vguide",
@@ -12099,7 +12124,7 @@ function SvgMotionStudio() {
       lineHeight: 1.5,
       backdropFilter: "blur(4px)"
     }
-  }, "\u30C9\u30E9\u30C3\u30B0\u3067\u79FB\u52D5 \u30FB Ctrl+\u30DB\u30A4\u30FC\u30EB\uFF0F\u30D4\u30F3\u30C1\u3067\u62E1\u5927\u7E2E\u5C0F"), !pvModal && previewBoxEl), !pvModal && React.createElement(ResizeHandles, null)), React.createElement("div", {
+  }, "\u30C9\u30E9\u30C3\u30B0\u3067\u79FB\u52D5 \u30FB Ctrl+\u30DB\u30A4\u30FC\u30EB\uFF0F\u30D4\u30F3\u30C1\u3067\u62E1\u5927\u7E2E\u5C0F"), !pvModal && previewBoxEl, !pvModal && React.createElement(ResizeHandles, null)), React.createElement("div", {
     style: S.controls
   }, React.createElement("button", {
     className: "btn",
