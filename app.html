@@ -2672,7 +2672,7 @@ const defaultImgSetting = () => ({
 });
 const SVGNS = "http://www.w3.org/2000/svg";
 const XHTML = "http://www.w3.org/1999/xhtml";
-const APP_BUILD = "2026-07-10.4";
+const APP_BUILD = "2026-07-10.5";
 const Icon = ({
   name,
   size = 16,
@@ -7921,11 +7921,13 @@ function SvgMotionStudio() {
     const indices = [sel, ...ms].map(u => +u.slice(1));
     const res = groupPartsInSvg(scene.svgText, indices);
     if (!res) return;
-    const ns = {};
+    const ns = {
+      ...initSettings(res.text)
+    };
     Object.entries(res.mapping).forEach(([oldIdx, newIdx]) => {
       if (scene.settings[`p${oldIdx}`]) ns[`p${newIdx}`] = scene.settings[`p${oldIdx}`];
     });
-    ns[`p${res.groupIndex}`] = scene.settings[sel] || defaultSetting();
+    ns[`p${res.groupIndex}`] = scene.settings[sel] || ns[`p${res.groupIndex}`] || defaultSetting();
     setScenesH(sc => sc.map(s => s.id === scene.id ? {
       ...s,
       svgText: res.text,
@@ -7945,10 +7947,13 @@ function SvgMotionStudio() {
       showToast("このパーツはグループ解除できません");
       return;
     }
-    const ns = {};
+    const ns = {
+      ...initSettings(res.text)
+    };
     const groupSetting = scene.settings[sel] || defaultSetting();
     Object.entries(scene.settings).forEach(([uid, st]) => {
       const i = +uid.slice(1);
+      if (!Number.isFinite(i)) return;
       if (i < idx) ns[uid] = st;else if (i === idx) {
         for (let k = 0; k < res.childCount; k++) ns[`p${idx + k}`] = {
           ...groupSetting
@@ -8236,7 +8241,7 @@ function SvgMotionStudio() {
     };
     targets.forEach(u => {
       ns[u] = {
-        ...ns[u],
+        ...(ns[u] || defaultSetting()),
         ...patch
       };
     });
