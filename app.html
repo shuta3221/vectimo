@@ -2672,7 +2672,7 @@ const defaultImgSetting = () => ({
 });
 const SVGNS = "http://www.w3.org/2000/svg";
 const XHTML = "http://www.w3.org/1999/xhtml";
-const APP_BUILD = "2026-07-10.2";
+const APP_BUILD = "2026-07-10.3";
 const Icon = ({
   name,
   size = 16,
@@ -8167,15 +8167,23 @@ function SvgMotionStudio() {
   useEffect(() => {
     const id = setTimeout(() => setResizeTick(t => t + 1), 40);
     return () => clearTimeout(id);
-  }, [selected, previewSvg, pvZoom, liveT, seekT, activeId]);
+  }, [selected, previewSvg, pvZoom, seekT, activeId, pvModal, playing]);
   useEffect(() => {
     const wrap = previewWrapRef.current;
-    const onUpdate = () => setResizeTick(t => t + 1);
+    let raf = 0;
+    const onUpdate = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        setResizeTick(t => t + 1);
+      });
+    };
     wrap && wrap.addEventListener("scroll", onUpdate, {
       passive: true
     });
     window.addEventListener("resize", onUpdate);
     return () => {
+      if (raf) cancelAnimationFrame(raf);
       wrap && wrap.removeEventListener("scroll", onUpdate);
       window.removeEventListener("resize", onUpdate);
     };
@@ -8580,10 +8588,11 @@ function SvgMotionStudio() {
     }
   }) : null;
   const ResizeHandles = () => {
-    if (pvModal || !scene || !selected || !selected.startsWith("p")) return null;
+    if (!scene || !selected || !selected.startsWith("p")) return null;
+    if (playing && seekT === null) return null;
     void resizeTick;
     const host = previewHostRef.current;
-    const wrap = previewWrapRef.current;
+    const wrap = host ? host.parentElement : null;
     if (!host || !wrap) return null;
     const svgEl = host.querySelector("svg");
     const el = host.querySelector(`[data-part="${selected}"]`);
@@ -8661,7 +8670,10 @@ function SvgMotionStudio() {
           g.style.transformOrigin = `${pr.anchorRelX * 100}% ${pr.anchorRelY * 100}%`;
           g.style.transform = `scale(${sx} ${sy})`;
         }
-        setResizeTick(t => t + 1);
+        if (!pr._raf) pr._raf = requestAnimationFrame(() => {
+          pr._raf = 0;
+          setResizeTick(t => t + 1);
+        });
       };
       const onUp = () => {
         window.removeEventListener("pointermove", onMove);
@@ -12559,7 +12571,7 @@ function SvgMotionStudio() {
       zIndex: 5,
       pointerEvents: "none"
     }
-  }), previewBoxEl), React.createElement("aside", {
+  }), previewBoxEl, React.createElement(ResizeHandles, null)), React.createElement("aside", {
     className: "col-scroll vc-chrome",
     style: {
       ...S.rightPanel,
