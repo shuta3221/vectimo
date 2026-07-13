@@ -2672,7 +2672,7 @@ const defaultImgSetting = () => ({
 });
 const SVGNS = "http://www.w3.org/2000/svg";
 const XHTML = "http://www.w3.org/1999/xhtml";
-const APP_BUILD = "2026-07-10.5";
+const APP_BUILD = "2026-07-12.1";
 const Icon = ({
   name,
   size = 16,
@@ -6331,6 +6331,52 @@ function drawTransitionFrame(ctx, W, H, prevImg, currImg, trans, p) {
   ctx.drawImage(currImg, 0, 0, W, H);
   ctx.restore();
 }
+const _slimCache = new Map();
+async function slimSvgImagesForExport(svgText, maxSide) {
+  const urls = new Set();
+  for (const m of svgText.matchAll(/(?:xlink:href|href)="(data:image\/(?:png|jpeg|jpg|webp);base64,[^"]{2000,})"/g)) urls.add(m[1]);
+  if (!urls.size) return svgText;
+  let out = svgText;
+  for (const dataUrl of urls) {
+    try {
+      let slim = _slimCache.get(dataUrl);
+      if (!slim) {
+        const img = new Image();
+        await new Promise((res, rej) => {
+          img.onload = res;
+          img.onerror = rej;
+          img.src = dataUrl;
+        });
+        const long = Math.max(img.naturalWidth, img.naturalHeight);
+        const scale = Math.min(1, maxSide / long);
+        const w = Math.max(1, Math.round(img.naturalWidth * scale));
+        const h = Math.max(1, Math.round(img.naturalHeight * scale));
+        const probe = document.createElement("canvas");
+        probe.width = 64;
+        probe.height = 64;
+        const px = probe.getContext("2d");
+        px.drawImage(img, 0, 0, 64, 64);
+        const pd = px.getImageData(0, 0, 64, 64).data;
+        let hasAlpha = false;
+        for (let i = 3; i < pd.length; i += 4) {
+          if (pd[i] < 250) {
+            hasAlpha = true;
+            break;
+          }
+        }
+        const c = document.createElement("canvas");
+        c.width = w;
+        c.height = h;
+        c.getContext("2d").drawImage(img, 0, 0, w, h);
+        slim = hasAlpha ? c.toDataURL("image/png") : c.toDataURL("image/jpeg", 0.85);
+        if (slim.length >= dataUrl.length && scale >= 1) slim = dataUrl;
+        _slimCache.set(dataUrl, slim);
+      }
+      if (slim !== dataUrl) out = out.split(dataUrl).join(slim);
+    } catch (e) {}
+  }
+  return out;
+}
 async function renderMp4({
   scenes,
   frame,
@@ -6340,6 +6386,15 @@ async function renderMp4({
   isCancelled
 }) {
   const [W, H] = sceneDims(scenes, frame);
+  try {
+    if (onProgress) onProgress(0, "画像を最適化中");
+    const maxSide = Math.ceil(Math.max(W, H) * 1.6);
+    const slimmed = await Promise.all(scenes.map(s => slimSvgImagesForExport(s.svgText, maxSide)));
+    scenes = scenes.map((s, i) => ({
+      ...s,
+      svgText: slimmed[i]
+    }));
+  } catch (e) {}
   let embedFontCss = "";
   try {
     if (onProgress) onProgress(0, "フォントを準備中");
