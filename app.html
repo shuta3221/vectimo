@@ -2672,7 +2672,7 @@ const defaultImgSetting = () => ({
 });
 const SVGNS = "http://www.w3.org/2000/svg";
 const XHTML = "http://www.w3.org/1999/xhtml";
-const APP_BUILD = "2026-07-12.1";
+const APP_BUILD = "2026-07-14.1";
 const Icon = ({
   name,
   size = 16,
@@ -6250,6 +6250,161 @@ async function svgToImage(svgStr) {
     setTimeout(() => URL.revokeObjectURL(url), 100);
   }
 }
+const _crc32Table = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ c >>> 1 : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(bytes) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) c = _crc32Table[(c ^ bytes[i]) & 0xFF] ^ c >>> 8;
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+function buildZipBlob(entries) {
+  const encoder = new TextEncoder();
+  const localParts = [],
+    centralParts = [];
+  let offset = 0;
+  const dosTime = 0,
+    dosDate = 0x21 << 9 | 1 << 5 | 1;
+  for (const {
+    name,
+    data
+  } of entries) {
+    const nameBytes = encoder.encode(name);
+    const crc = crc32(data);
+    const size = data.length;
+    const localHeader = new DataView(new ArrayBuffer(30));
+    localHeader.setUint32(0, 0x04034b50, true);
+    localHeader.setUint16(4, 20, true);
+    localHeader.setUint16(6, 0, true);
+    localHeader.setUint16(8, 0, true);
+    localHeader.setUint16(10, dosTime, true);
+    localHeader.setUint16(12, dosDate, true);
+    localHeader.setUint32(14, crc, true);
+    localHeader.setUint32(18, size, true);
+    localHeader.setUint32(22, size, true);
+    localHeader.setUint16(26, nameBytes.length, true);
+    localHeader.setUint16(28, 0, true);
+    localParts.push(new Uint8Array(localHeader.buffer), nameBytes, data);
+    const centralHeader = new DataView(new ArrayBuffer(46));
+    centralHeader.setUint32(0, 0x02014b50, true);
+    centralHeader.setUint16(4, 20, true);
+    centralHeader.setUint16(6, 20, true);
+    centralHeader.setUint16(8, 0, true);
+    centralHeader.setUint16(10, 0, true);
+    centralHeader.setUint16(12, dosTime, true);
+    centralHeader.setUint16(14, dosDate, true);
+    centralHeader.setUint32(16, crc, true);
+    centralHeader.setUint32(20, size, true);
+    centralHeader.setUint32(24, size, true);
+    centralHeader.setUint16(28, nameBytes.length, true);
+    centralHeader.setUint16(30, 0, true);
+    centralHeader.setUint16(32, 0, true);
+    centralHeader.setUint16(34, 0, true);
+    centralHeader.setUint16(36, 0, true);
+    centralHeader.setUint32(38, 0, true);
+    centralHeader.setUint32(42, offset, true);
+    centralParts.push(new Uint8Array(centralHeader.buffer), nameBytes);
+    offset += localHeader.buffer.byteLength + nameBytes.length + size;
+  }
+  const centralSize = centralParts.reduce((a, p) => a + p.length, 0);
+  const centralOffset = offset;
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true);
+  end.setUint16(4, 0, true);
+  end.setUint16(6, 0, true);
+  end.setUint16(8, entries.length, true);
+  end.setUint16(10, entries.length, true);
+  end.setUint32(12, centralSize, true);
+  end.setUint32(16, centralOffset, true);
+  end.setUint16(20, 0, true);
+  return new Blob([...localParts, ...centralParts, new Uint8Array(end.buffer)], {
+    type: "application/zip"
+  });
+}
+function sanitizeZipEntryName(name) {
+  return (name || "scene").replace(/[\/\\:*?"<>|]/g, "_").trim() || "scene";
+}
+async function exportScenesAsZip(scenes, frame, format, {
+  activeSceneId = null,
+  seekT = null,
+  onProgress = () => {},
+  isCancelled = () => false
+} = {}) {
+  const encoder = new TextEncoder();
+  const entries = [];
+  const usedNames = new Set();
+  const nameFor = (s, i, ext) => {
+    const base = `${String(i + 1).padStart(2, "0")}_${sanitizeZipEntryName(s.name)}`;
+    let name = `${base}.${ext}`;
+    let n = 2;
+    while (usedNames.has(name)) name = `${base}_${n++}.${ext}`;
+    usedNames.add(name);
+    return name;
+  };
+  for (let i = 0; i < scenes.length; i++) {
+    if (isCancelled()) return null;
+    const s = scenes[i];
+    onProgress(i, scenes.length);
+    if (format === "svg") {
+      const slimmed = await slimSvgImagesForExport(s.svgText, 1600);
+      const raw = buildAnimatedSvg(slimmed, s.settings, {
+        forExport: true,
+        frame,
+        videos: s.videoParts,
+        sceneDuration: s.duration,
+        overlays: s.overlays
+      });
+      const withFonts = await embedFontsInSvg(raw);
+      entries.push({
+        name: nameFor(s, i, "svg"),
+        data: encoder.encode(withFonts)
+      });
+    } else {
+      const isActive = s.id === activeSceneId && seekT !== null;
+      const raw = buildAnimatedSvg(s.svgText, s.settings, {
+        forExport: true,
+        frame,
+        videos: s.videoParts,
+        sceneDuration: s.duration,
+        overlays: s.overlays,
+        staticMode: !isActive,
+        snapshotT: isActive ? seekT : null
+      });
+      const withFonts = await embedFontsInSvg(raw);
+      const img = await svgToImage(withFonts);
+      const fd = frame.ratio === "original" ? null : FRAMES[frame.ratio]?.dims;
+      let W, H;
+      if (fd) {
+        [W, H] = fd;
+      } else {
+        const p = parseSvg(s.svgText);
+        const vb = p.root ? (p.root.getAttribute("viewBox") || "0 0 1280 720").split(/[\s,]+/).map(Number) : [0, 0, 1280, 720];
+        W = Math.round(vb[2]);
+        H = Math.round(vb[3]);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = W;
+      canvas.height = H;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, W, H);
+      const blob = await new Promise(res => canvas.toBlob(res, "image/png"));
+      const buf = new Uint8Array(await blob.arrayBuffer());
+      entries.push({
+        name: nameFor(s, i, "png"),
+        data: buf
+      });
+    }
+  }
+  if (isCancelled()) return null;
+  onProgress(scenes.length, scenes.length);
+  return buildZipBlob(entries);
+}
 function drawTransitionFrame(ctx, W, H, prevImg, currImg, trans, p) {
   ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = "#000";
@@ -7380,6 +7535,244 @@ function Mp4ExportModal({
     }
   }, "\u9589\u3058\u308B"))));
 }
+function ZipExportModal({
+  scenes,
+  frame,
+  activeSceneId,
+  seekT,
+  onClose
+}) {
+  const [format, setFormat] = useState("svg");
+  const [state, setState] = useState("idle");
+  const [progress, setProgress] = useState(0);
+  const [current, setCurrent] = useState(0);
+  const [error, setError] = useState("");
+  const cancelRef = useRef(false);
+  const start = async () => {
+    cancelRef.current = false;
+    setState("rendering");
+    setProgress(0);
+    setCurrent(0);
+    setError("");
+    try {
+      const blob = await exportScenesAsZip(scenes, frame, format, {
+        activeSceneId,
+        seekT,
+        onProgress: (i, total) => {
+          setCurrent(i);
+          setProgress(total ? i / total : 0);
+        },
+        isCancelled: () => cancelRef.current
+      });
+      if (!blob) {
+        setState("idle");
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `vectimo-scenes-${format}.zip`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      setState("done");
+    } catch (e) {
+      setError(e.message || String(e));
+      setState("error");
+    }
+  };
+  return React.createElement("div", {
+    style: {
+      position: "fixed",
+      inset: 0,
+      background: "#000000B0",
+      zIndex: 60,
+      display: "grid",
+      placeItems: "center"
+    }
+  }, React.createElement("div", {
+    className: "vc-modal",
+    style: {
+      background: "#1D2129",
+      border: "1px solid #333A4A",
+      borderRadius: 14,
+      padding: 24,
+      width: 420,
+      maxWidth: "92vw",
+      color: "#EDEEF2"
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 16,
+      fontWeight: 700,
+      marginBottom: 4
+    }
+  }, "\u5168\u30B7\u30FC\u30F3\u3092ZIP\u3067\u66F8\u304D\u51FA\u3057"), React.createElement("p", {
+    style: {
+      fontSize: 12,
+      color: "#9AA0AE",
+      margin: "0 0 16px",
+      lineHeight: 1.7
+    }
+  }, scenes.length, "\u500B\u306E\u30B7\u30FC\u30F3\u3092", format === "svg" ? "SVG" : "PNG", "\u3068\u3057\u3066\u307E\u3068\u3081\u3066ZIP\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\u3057\u307E\u3059\u3002"), state === "idle" || state === "error" ? React.createElement(React.Fragment, null, React.createElement("div", {
+    style: {
+      marginBottom: 16
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: "#9AA0AE",
+      marginBottom: 6
+    }
+  }, "\u5F62\u5F0F"), React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      gap: 6
+    }
+  }, [{
+    key: "svg",
+    label: "SVG",
+    sub: "\u30A2\u30CB\u30E1\u30FC\u30B7\u30E7\u30F3\u4ED8\u304D\u30D9\u30AF\u30BF\u30FC"
+  }, {
+    key: "png",
+    label: "PNG",
+    sub: "\u9759\u6B62\u753B\u30E9\u30B9\u30BF\u30FC"
+  }].map(f => React.createElement("button", {
+    key: f.key,
+    className: "btn",
+    style: {
+      background: format === f.key ? "#2B2350" : "#14161C",
+      color: "#EDEEF2",
+      border: format === f.key ? "1.5px solid #8B7CFF" : "1px solid #333A4A",
+      borderRadius: 8,
+      padding: "8px 10px",
+      cursor: "pointer",
+      textAlign: "left"
+    },
+    onClick: () => setFormat(f.key)
+  }, React.createElement("div", {
+    style: {
+      fontSize: 12.5,
+      fontWeight: 700
+    }
+  }, f.label), React.createElement("div", {
+    style: {
+      fontSize: 10.5,
+      color: "#9AA0AE"
+    }
+  }, f.sub))))), state === "error" && React.createElement("p", {
+    style: {
+      fontSize: 12,
+      color: "#FFB3C0",
+      margin: "0 0 12px"
+    }
+  }, error), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8
+    }
+  }, React.createElement("button", {
+    className: "btn",
+    onClick: start,
+    style: {
+      flex: 1,
+      background: "#8B7CFF",
+      color: "#14161C",
+      border: "none",
+      borderRadius: 8,
+      padding: "10px",
+      fontWeight: 700,
+      cursor: "pointer",
+      fontSize: 14
+    }
+  }, "\u66F8\u304D\u51FA\u3057\u958B\u59CB"), React.createElement("button", {
+    className: "btn",
+    onClick: onClose,
+    style: {
+      background: "#14161C",
+      color: "#C9CDD6",
+      border: "1px solid #333A4A",
+      borderRadius: 8,
+      padding: "10px 16px",
+      cursor: "pointer",
+      fontSize: 13
+    }
+  }, "\u9589\u3058\u308B"))) : state === "rendering" ? React.createElement(React.Fragment, null, React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "baseline",
+      marginBottom: 8
+    }
+  }, React.createElement("span", {
+    style: {
+      fontSize: 26,
+      fontWeight: 700,
+      fontFamily: "'DM Mono',monospace",
+      color: "#EDEEF2"
+    }
+  }, (progress * 100).toFixed(0), React.createElement("span", {
+    style: {
+      fontSize: 14,
+      color: "#9AA0AE"
+    }
+  }, "%")), React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: "#5FD6C4"
+    }
+  }, "\u30B7\u30FC\u30F3 ", current, " / ", scenes.length)), React.createElement("div", {
+    style: {
+      height: 10,
+      background: "#14161C",
+      borderRadius: 5,
+      overflow: "hidden",
+      marginBottom: 14
+    }
+  }, React.createElement("div", {
+    style: {
+      height: "100%",
+      width: `${(progress * 100).toFixed(1)}%`,
+      background: "linear-gradient(90deg,#8B7CFF,#5FD6C4)",
+      transition: "width .2s"
+    }
+  })), React.createElement("button", {
+    className: "btn",
+    onClick: () => {
+      cancelRef.current = true;
+      setState("idle");
+    },
+    style: {
+      background: "#14161C",
+      color: "#C9CDD6",
+      border: "1px solid #333A4A",
+      borderRadius: 8,
+      padding: "8px 16px",
+      cursor: "pointer",
+      fontSize: 13,
+      width: "100%"
+    }
+  }, "\u30AD\u30E3\u30F3\u30BB\u30EB")) : React.createElement(React.Fragment, null, React.createElement("p", {
+    style: {
+      fontSize: 13,
+      color: "#8BE28B",
+      margin: "0 0 14px"
+    }
+  }, "\u2714 \u66F8\u304D\u51FA\u3057\u5B8C\u4E86\u3002\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\u304C\u59CB\u307E\u308A\u307E\u3057\u305F\u3002"), React.createElement("button", {
+    className: "btn",
+    onClick: onClose,
+    style: {
+      background: "#8B7CFF",
+      color: "#14161C",
+      border: "none",
+      borderRadius: 8,
+      padding: "10px 16px",
+      fontWeight: 700,
+      cursor: "pointer",
+      fontSize: 13
+    }
+  }, "\u9589\u3058\u308B"))));
+}
 function SequencePlayer({
   scenes,
   bgm,
@@ -7759,6 +8152,7 @@ function SvgMotionStudio() {
   const [playing, setPlaying] = useState(false);
   const [seqOpen, setSeqOpen] = useState(false);
   const [mp4Open, setMp4Open] = useState(false);
+  const [zipOpen, setZipOpen] = useState(false);
   const [cropData, setCropData] = useState(null);
   const [videoEdit, setVideoEdit] = useState(null);
   const [seekT, setSeekT] = useState(null);
@@ -11539,6 +11933,20 @@ function SvgMotionStudio() {
   }), "\u3053\u306E\u30B7\u30FC\u30F3\u3092SVG\u66F8\u304D\u51FA\u3057")), React.createElement("button", {
     className: "ctxItem",
     onClick: () => {
+      setZipOpen(true);
+      setFileMenu(false);
+    }
+  }, React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 8
+    }
+  }, React.createElement(Icon, {
+    name: "image"
+  }), "\u5168\u30B7\u30FC\u30F3\u3092ZIP\u3067\u307E\u3068\u3081\u3066\u66F8\u304D\u51FA\u3057")), React.createElement("button", {
+    className: "ctxItem",
+    onClick: () => {
       setHintsDone(false);
       setFileMenu(false);
     }
@@ -12793,6 +13201,12 @@ function SvgMotionStudio() {
     bgm: bgm,
     onFrame: setFrame,
     onClose: () => setMp4Open(false)
+  }), zipOpen && React.createElement(ZipExportModal, {
+    scenes: scenes,
+    frame: frame,
+    activeSceneId: scene?.id,
+    seekT: seekT,
+    onClose: () => setZipOpen(false)
   }), bulkOpen && React.createElement(BulkMediaModal, {
     scenes: scenes,
     onClose: () => setBulkOpen(false),

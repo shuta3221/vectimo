@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SVGパーツをグループ化してまとめて編集する方法【Ctrl+G】｜Vectimo</title>
+<meta name="description" content="SVGの中の複数パーツを選択してグループ化し、移動・拡大縮小・アニメーションをまとめて編集する方法を解説。Ctrl+Gでグループ化、Ctrl+Shift+Gで解除。整列や一括反映のコツも紹介します。">
+<link rel="canonical" href="https://vectimo.pages.dev/blog/how-to-group-svg-parts.html">
+<meta property="og:title" content="SVGパーツをグループ化してまとめて編集する方法【Ctrl+G】">
+<meta property="og:description" content="複数のSVGパーツを選択してグループ化し、移動・拡大縮小・アニメーションをまとめて編集する方法を解説。">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://vectimo.pages.dev/blog/how-to-group-svg-parts.html">
+<meta property="og:image" content="https://vectimo.pages.dev/vectimo-ogp-blog.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%2314161C'/%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='0'%3E%3Cstop offset='0' stop-color='%23FFFFFF'/%3E%3Cstop offset='1' stop-color='%238B5CF6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M12 24 H28 L42 66 L53 46 L62 58 L77 24 H90 V90 H79 V48 L64 78 L53 63 L44 86 H35 Z' fill='url(%23g)'/%3E%3C/svg%3E">
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+<link rel="stylesheet" href="/blog/blog.css">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"Article","headline":"SVGパーツをグループ化してまとめて編集する方法【Ctrl+G】","description":"SVGの中の複数パーツを選択してグループ化し、移動・拡大縮小・アニメーションをまとめて編集する方法を解説。","datePublished":"2026-07-14","dateModified":"2026-07-14","inLanguage":"ja","author":{"@type":"Organization","name":"Vectimo"},"publisher":{"@type":"Organization","name":"Vectimo","logo":{"@type":"ImageObject","url":"https://vectimo.pages.dev/icon-512.png"}},"image":"https://vectimo.pages.dev/vectimo-ogp-blog.png","mainEntityOfPage":"https://vectimo.pages.dev/blog/how-to-group-svg-parts.html"}
+</script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
+{"@type":"ListItem","position":1,"name":"トップ","item":"https://vectimo.pages.dev/"},
+{"@type":"ListItem","position":2,"name":"ブログ","item":"https://vectimo.pages.dev/blog/"},
+{"@type":"ListItem","position":3,"name":"SVGパーツのグループ化"}]}
+</script>
+</head>
+<body>
+<header class="site"><div class="wrap wide nav">
+  <a class="logo" href="/"><svg width="26" height="26" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="#14161C"/><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FFF"/><stop offset="1" stop-color="#8B5CF6"/></linearGradient></defs><path d="M12 24 H28 L42 66 L53 46 L62 58 L77 24 H90 V90 H79 V48 L64 78 L53 63 L44 86 H35 Z" fill="url(#lg)"/></svg>Vectimo</a>
+  <div class="links">
+    <a href="/blog/" class="hidesp">ブログ</a>
+    <a href="/png-to-svg.html" class="hidesp">PNG→SVG変換</a>
+    <a href="/svg-to-png.html" class="hidesp">SVG→PNG変換</a>
+    <a href="/vectimo-guide.html" class="hidesp">使い方</a>
+    <a class="btn small" href="/app.html">無料で使う</a>
+  </div>
+</div></header>
+<main class="wrap">
+  <nav class="breadcrumb"><a href="/">トップ</a> › <a href="/blog/">ブログ</a> › SVGパーツのグループ化</nav>
+  <article>
+    <h1>SVGパーツをグループ化してまとめて編集する方法【Ctrl+G】</h1>
+    <div class="post-meta"><span>公開：2026-07-14</span><span>カテゴリ：SVG活用</span></div>
+    <img class="eyecatch" src="/vectimo-ogp-blog.png" width="1200" height="630" alt="SVGパーツをグループ化してまとめて編集する方法">
+    <p class="lead">Illustratorで作ったロゴやイラストのSVGは、パーツ数が多いほど「1つずつ動かすのが面倒」という悩みが出てきます。Vectimoでは複数のパーツをまとめて選択し、グループ化して1つの部品として扱えます。この記事では、グループ化の手順とメリット、解除するときの注意点まで解説します。</p>
+
+    <div class="toc"><b>目次</b>
+      <ol>
+        <li><a href="#s1">SVGパーツをグループ化すると何が変わるのか</a></li>
+        <li><a href="#s2">手順1：Shift＋クリックで複数のパーツを選択する</a></li>
+        <li><a href="#s3">手順2：Ctrl+Gでグループ化する</a></li>
+        <li><a href="#s4">グループ化のメリット：移動・拡大縮小・整列を一度に</a></li>
+        <li><a href="#s5">複数選択のままアニメーションを一括で設定する</a></li>
+        <li><a href="#s6">グループを解除する（Ctrl+Shift+G）</a></li>
+        <li><a href="#faq">よくある質問</a></li>
+      </ol>
+    </div>
+
+    <h2 id="s1">SVGパーツをグループ化すると何が変わるのか</h2>
+    <p>SVGはロゴのアウトラインや飾りの図形など、細かい<code>&lt;g&gt;</code>要素の集まりでできていることがほとんどです。パーツ数が多いSVGをそのまま動画にすると、「1つずつ位置を直す」「1つずつアニメーションを付ける」という作業が発生し、パーツが10個・20個になるとかなりの手間になります。</p>
+    <p>Vectimoの<b>グループ化</b>は、複数のパーツを選んでひとまとめの部品にする機能です。グループ化した後は、選択・移動・拡大縮小・アニメーション設定のすべてを、1つのパーツとして扱えます。</p>
+    <div class="point"><b>ポイント：</b>「本体のロゴマーク」「背景の飾り」「キャッチコピーの文字」のように、動きを揃えたいパーツ同士をグループにまとめておくと、後からの調整が驚くほど楽になります。</div>
+
+    <h2 id="s2">手順1：Shift＋クリックで複数のパーツを選択する</h2>
+    <p>まず、グループ化したいパーツを複数選びます。</p>
+    <ol>
+      <li>プレビュー上、またはパーツ一覧から1つ目のパーツをクリックして選択</li>
+      <li><b>Shiftキーを押しながら</b>、続けてまとめたいパーツをクリック</li>
+      <li>選択したパーツはハイライト表示され、何個選ばれているか確認できます</li>
+    </ol>
+    <p>2つ以上選ばれていないとグループ化できないので、少なくとも2パーツを選んだ状態にしてください。</p>
+
+    <h2 id="s3">手順2：Ctrl+Gでグループ化する</h2>
+    <p>複数のパーツを選んだ状態で、キーボードの<b>Ctrl+G</b>を押すか、画面上の「選択した◯個をグループ化」ボタンをクリックします。「✔ ◯個のパーツをグループ化しました」というメッセージが出れば完了です。</p>
+    <p>グループ化された部分は、パーツ一覧上では1つのパーツとして表示されるようになります。</p>
+
+    <h2 id="s4">グループ化のメリット：移動・拡大縮小・整列を一度に</h2>
+    <p>グループ化した後は、次の操作がすべて「1つのパーツ」として行えます。</p>
+    <ul>
+      <li><b>移動</b>：ドラッグすればグループ内のパーツが一緒に動く</li>
+      <li><b>拡大縮小</b>：四隅のハンドルで比率を保ったまま、まとめてリサイズ</li>
+      <li><b>整列</b>：グループ化しない場合でも、複数選択したまま「整列」ボタンを使うと、最初に選んだパーツを基準に他のパーツを上下左右・中央にきれいに揃えられます</li>
+    </ul>
+    <p>特に、ロゴマークのように「複数の図形が集まって1つの意味を持つ」パーツは、グループ化しておくとレイアウト調整のたびに位置がずれる心配がありません。</p>
+
+    <h2 id="s5">複数選択のままアニメーションを一括で設定する</h2>
+    <p>グループ化までしなくても、複数のパーツを選択した状態で右側のアニメーション設定パネルを操作すると、種類・時間・ディレイ・イージング・移動距離・拡大率・ループ・退場・不透明度といった設定が<b>選択中のパーツ全部に一括で反映</b>されます。</p>
+    <p>「見出しの文字を1文字ずつ動かしたいわけではなく、複数のパーツに同じフェードインを一括で付けたい」というときは、グループ化せずに複数選択のまま設定するのが手早い方法です。</p>
+    <div class="point"><b>ポイント：</b>「まとめて同じ動きにしたい」→複数選択のまま設定、「常に1つの部品として扱いたい」→グループ化、と使い分けると迷いません。</div>
+
+    <h2 id="s6">グループを解除する（Ctrl+Shift+G）</h2>
+    <p>グループ化したパーツを選択し、<b>Ctrl+Shift+G</b>を押すと元の個別パーツに戻せます。このとき、グループに設定していたアニメーションが、解除後の各パーツにそのままコピーされます。</p>
+    <p>そのため、グループ化する前に個別のパーツごとに違うアニメーションを設定していた場合、その内容はグループ化した時点で1つに統一される点に注意してください（グループの動きは、最初に選んだパーツの設定が引き継がれます）。</p>
+
+    <h2 id="faq">よくある質問</h2>
+    <details class="faq"><summary>グループ化するには何個からパーツを選べばいいですか？</summary><p>2つ以上です。1つしか選んでいない状態ではグループ化ボタンが表示されず、「Shift＋クリックで2つ以上選択してからグループ化してください」という案内が出ます。</p></details>
+    <details class="faq"><summary>グループ化・解除の操作は元に戻せますか？</summary><p>Ctrl+Zの取り消し操作に対応しています。グループ化しすぎた、解除し忘れた、という場合もすぐに戻せます。</p></details>
+    <details class="faq"><summary>パーツ数がとても多いSVG（PNGから変換したものなど）はどうなりますか？</summary><p>数百個の細かいパーツを持つSVGを読み込むと、動作が重くならないようVectimoが自動で同色ごとにグループ化します。手動でのグループ化は、その後さらに用途別にまとめ直したいときに使う機能です。</p></details>
+    <details class="faq"><summary>グループの中の一部だけ動きを変えたい場合は？</summary><p>一度Ctrl+Shift+Gで解除し、個別にアニメーションを設定してから、必要であれば再度グループ化してください。</p></details>
+
+  <div class="cta-app">
+    <h2>グループ化したSVGパーツに、実際に動きを付けてみませんか？</h2>
+    <p>Vectimoなら、SVGを読み込んでパーツを選ぶだけで、フェードイン・スライド・パン&ズームなど30種類以上のアニメーションを付けたMP4動画がブラウザだけで作れます。<br>インストール不要・登録不要・無料です。</p>
+    <a class="btn" href="/app.html">Vectimoを無料で使ってみる →</a>
+    <div class="note">データは外部に送信されません・Chrome / Edge（PC）推奨</div>
+  </div>
+
+    <div class="related">
+      <h2>関連ページ</h2>
+      <a href="/vectimo-guide.html">Vectimoの使い方ガイド</a>
+      <a href="/png-to-svg.html">PNG→SVG変換ツール（無料・ブラウザ完結）</a>
+      <a href="/svg-to-png.html">SVG→PNG変換ツール（無料・ブラウザ完結）</a>
+    </div>
+  </article>
+</main>
+<footer class="site"><div class="wrap wide">
+  <div><a href="/">トップ</a><a href="/app.html">アプリ</a><a href="/blog/">ブログ</a><a href="/png-to-svg.html">PNG→SVG変換</a><a href="/vectimo-guide.html">使い方ガイド</a><a href="/vectimo-terms.html">利用規約</a><a href="/vectimo-privacy.html">プライバシーポリシー</a></div>
+  <div style="margin-top:10px">© Vectimo</div>
+</div></footer>
+</body>
+</html>
