@@ -2686,6 +2686,7 @@ function parseFontNameTable(arrayBuffer) {
     aliases
   };
 }
+const _customFontFaceCss = {};
 function registerCustomFont({
   id,
   family,
@@ -2707,13 +2708,56 @@ function registerCustomFont({
   };
   addAlias(family);
   (aliases || []).forEach(addAlias);
+  _customFontFaceCss[id] = `@font-face{font-family:'${family}';src:url(${dataUrl}) format('${format}');}`;
   let styleEl = document.getElementById("vectimo-custom-fonts");
   if (!styleEl) {
     styleEl = document.createElement("style");
     styleEl.id = "vectimo-custom-fonts";
     document.head.appendChild(styleEl);
   }
-  styleEl.textContent += `\n@font-face{font-family:'${family}';src:url(${dataUrl}) format('${format}');}`;
+  styleEl.textContent = Object.values(_customFontFaceCss).join("\n");
+}
+function openFontDB() {
+  return new Promise((resolve, reject) => {
+    if (!window.indexedDB) {
+      reject(new Error("indexedDB unavailable"));
+      return;
+    }
+    const req = indexedDB.open("vectimo-fonts", 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains("fonts")) req.result.createObjectStore("fonts", {
+        keyPath: "id"
+      });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function saveFontToDB(entry) {
+  try {
+    const db = await openFontDB();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction("fonts", "readwrite");
+      tx.objectStore("fonts").put(entry);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) {
+    console.warn("カスタムフォントの永続保存に失敗しました", e);
+  }
+}
+async function loadAllFontsFromDB() {
+  try {
+    const db = await openFontDB();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction("fonts", "readonly");
+      const req = tx.objectStore("fonts").getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (e) {
+    return [];
+  }
 }
 function getSceneAudios(s) {
   if (!s) return [];
@@ -2753,7 +2797,7 @@ const defaultImgSetting = () => ({
 });
 const SVGNS = "http://www.w3.org/2000/svg";
 const XHTML = "http://www.w3.org/1999/xhtml";
-const APP_BUILD = "2026-07-17.3";
+const APP_BUILD = "2026-07-17.4";
 const Icon = ({
   name,
   size = 16,
@@ -8566,6 +8610,13 @@ function SvgMotionStudio() {
     document.head.appendChild(link);
   }, []);
   useEffect(() => {
+    loadAllFontsFromDB().then(entries => {
+      if (!entries.length) return;
+      entries.forEach(registerCustomFont);
+      setCustomFonts(prev => [...prev.filter(f => !entries.some(e => e.id === f.id)), ...entries]);
+    }).catch(() => {});
+  }, []);
+  useEffect(() => {
     try {
       const raw = window.localStorage?.getItem("vectimo_import");
       if (!raw) return;
@@ -9891,16 +9942,18 @@ function SvgMotionStudio() {
         let bin = "";
         for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
         const dataUrl = `data:${mime};base64,${btoa(bin)}`;
+        const slug = primaryFamily.toLowerCase().replace(/[^a-z0-9ぁ-んァ-ヶー一-龠]+/gi, "_");
         const entry = {
-          id: "cf" + Date.now() + Math.floor(Math.random() * 1000),
+          id: "cf_" + slug,
           family: primaryFamily,
           aliases,
           dataUrl,
           format
         };
         registerCustomFont(entry);
-        setCustomFonts(prev => [...prev, entry]);
-        showToast(`✔ 「${primaryFamily}」を追加しました（${aliases.join(" / ")}という名前で自動適用されます）`);
+        setCustomFonts(prev => [...prev.filter(f => f.id !== entry.id), entry]);
+        saveFontToDB(entry);
+        showToast(`✔ 「${primaryFamily}」を追加しました（${aliases.join(" / ")}という名前で自動適用されます・次回以降このブラウザで自動的に使えます）`);
       } catch (err) {
         showToast(`⚠ 「${file.name}」を読み込めませんでした：` + (err.message || err));
       }
