@@ -2634,6 +2634,87 @@ function FontOptions() {
     value: k
   }, v.label))));
 }
+function parseFontNameTable(arrayBuffer) {
+  const dv = new DataView(arrayBuffer);
+  const numTables = dv.getUint16(4, false);
+  let nameTableOffset = null;
+  for (let i = 0; i < numTables; i++) {
+    const rec = 12 + i * 16;
+    const tag = String.fromCharCode(dv.getUint8(rec), dv.getUint8(rec + 1), dv.getUint8(rec + 2), dv.getUint8(rec + 3));
+    if (tag === "name") nameTableOffset = dv.getUint32(rec + 8, false);
+  }
+  if (nameTableOffset == null) return {
+    primaryFamily: null,
+    aliases: []
+  };
+  const count = dv.getUint16(nameTableOffset + 2, false);
+  const stringOffset = dv.getUint16(nameTableOffset + 4, false);
+  const names = [];
+  for (let i = 0; i < count; i++) {
+    const rec = nameTableOffset + 6 + i * 12;
+    const platformID = dv.getUint16(rec, false);
+    const nameID = dv.getUint16(rec + 6, false);
+    const length = dv.getUint16(rec + 8, false);
+    const offset = dv.getUint16(rec + 10, false);
+    if (nameID !== 1 && nameID !== 16) continue;
+    const start = nameTableOffset + stringOffset + offset;
+    let value = "";
+    try {
+      if (platformID === 3 || platformID === 0) {
+        for (let j = 0; j + 1 < length; j += 2) value += String.fromCharCode(dv.getUint16(start + j, false));
+      } else {
+        for (let j = 0; j < length; j++) value += String.fromCharCode(dv.getUint8(start + j));
+      }
+    } catch (e) {
+      continue;
+    }
+    value = value.trim();
+    if (value) names.push({
+      nameID,
+      platformID,
+      value
+    });
+  }
+  if (!names.length) return {
+    primaryFamily: null,
+    aliases: []
+  };
+  const preferred = names.find(n => n.nameID === 16 && n.platformID === 3) || names.find(n => n.nameID === 1 && n.platformID === 3) || names[0];
+  const aliases = [...new Set(names.map(n => n.value))];
+  return {
+    primaryFamily: preferred.value,
+    aliases
+  };
+}
+function registerCustomFont({
+  id,
+  family,
+  aliases,
+  dataUrl,
+  format
+}) {
+  OV_FONTS[id] = {
+    label: `${family}（カスタム）`,
+    group: "アップロードしたフォント",
+    css: `'${family}',sans-serif`,
+    isCustom: true,
+    customFamily: family,
+    customDataUrl: dataUrl,
+    customFormat: format
+  };
+  const addAlias = name => {
+    if (name) FONT_FAMILY_TO_KEY[name.toLowerCase()] = id;
+  };
+  addAlias(family);
+  (aliases || []).forEach(addAlias);
+  let styleEl = document.getElementById("vectimo-custom-fonts");
+  if (!styleEl) {
+    styleEl = document.createElement("style");
+    styleEl.id = "vectimo-custom-fonts";
+    document.head.appendChild(styleEl);
+  }
+  styleEl.textContent += `\n@font-face{font-family:'${family}';src:url(${dataUrl}) format('${format}');}`;
+}
 function getSceneAudios(s) {
   if (!s) return [];
   if (s.audios) return s.audios;
@@ -2672,7 +2753,7 @@ const defaultImgSetting = () => ({
 });
 const SVGNS = "http://www.w3.org/2000/svg";
 const XHTML = "http://www.w3.org/1999/xhtml";
-const APP_BUILD = "2026-07-14.1";
+const APP_BUILD = "2026-07-17.1";
 const Icon = ({
   name,
   size = 16,
@@ -6198,7 +6279,9 @@ function sceneDims(scenes, frame) {
 const _fontCssCache = {};
 async function fetchEmbeddableFontCss(fontKey) {
   const f = OV_FONTS[fontKey];
-  if (!f || !f.web) return "";
+  if (!f) return "";
+  if (f.isCustom) return `@font-face{font-family:'${f.customFamily}';src:url(${f.customDataUrl}) format('${f.customFormat}');}`;
+  if (!f.web) return "";
   if (_fontCssCache[fontKey] !== undefined) return _fontCssCache[fontKey];
   try {
     const cssUrl = "https://fonts.googleapis.com/css2?family=" + encodeURIComponent(f.web).replace(/%20/g, "+") + "&display=swap";
@@ -8223,8 +8306,10 @@ function SvgMotionStudio() {
     return () => el.removeEventListener("wheel", onWheel);
   });
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [customFonts, setCustomFonts] = useState([]);
   const [toast, setToast] = useState(null);
   const csvRef = useRef(null);
+  const fontRef = useRef(null);
   const undoRef = useRef([]);
   const redoRef = useRef([]);
   const projRef = useRef(null);
@@ -9737,6 +9822,53 @@ function SvgMotionStudio() {
       showToast("⚠ CSVを読み込めませんでした：" + (err.message || err));
     }
   };
+  const onCustomFontFile = async e => {
+    const files = [...(e.target.files || [])];
+    e.target.value = "";
+    if (!files.length) return;
+    for (const file of files) {
+      try {
+        const buf = await file.arrayBuffer();
+        const {
+          primaryFamily,
+          aliases
+        } = parseFontNameTable(buf);
+        if (!primaryFamily) {
+          showToast(`⚠ 「${file.name}」からフォント名を読み取れませんでした`);
+          continue;
+        }
+        const ext = (file.name.split(".").pop() || "ttf").toLowerCase();
+        const format = {
+          ttf: "truetype",
+          otf: "opentype",
+          woff: "woff",
+          woff2: "woff2"
+        }[ext] || "truetype";
+        const mime = {
+          ttf: "font/ttf",
+          otf: "font/otf",
+          woff: "font/woff",
+          woff2: "font/woff2"
+        }[ext] || "font/ttf";
+        const bytes = new Uint8Array(buf);
+        let bin = "";
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        const dataUrl = `data:${mime};base64,${btoa(bin)}`;
+        const entry = {
+          id: "cf" + Date.now() + Math.floor(Math.random() * 1000),
+          family: primaryFamily,
+          aliases,
+          dataUrl,
+          format
+        };
+        registerCustomFont(entry);
+        setCustomFonts(prev => [...prev, entry]);
+        showToast(`✔ 「${primaryFamily}」を追加しました（${aliases.join(" / ")}という名前で自動適用されます）`);
+      } catch (err) {
+        showToast(`⚠ 「${file.name}」を読み込めませんでした：` + (err.message || err));
+      }
+    }
+  };
   const saveProject = async (embedMedia = false) => {
     let bgmOut = bgm;
     let scenesOut = scenes.map(s => ({
@@ -9777,6 +9909,7 @@ function SvgMotionStudio() {
       version: 3,
       frame,
       customPresets,
+      customFonts,
       hintsDone,
       bgm: embedMedia ? bgmOut : bgm ? {
         ...bgm,
@@ -9806,6 +9939,10 @@ function SvgMotionStudio() {
       try {
         const data = JSON.parse(String(r.result));
         if (!data.scenes?.length) throw new Error("no scenes");
+        if (Array.isArray(data.customFonts)) {
+          data.customFonts.forEach(registerCustomFont);
+          setCustomFonts(data.customFonts);
+        }
         const loaded = data.scenes.map(s => {
           const audios = (s.audios || []).filter(a => a.src && a.src.startsWith("data:"));
           const videoParts = Object.fromEntries(Object.entries(s.videoParts || {}).filter(([, v]) => v.src && v.src.startsWith("data:")));
@@ -11947,6 +12084,20 @@ function SvgMotionStudio() {
   }), "\u5168\u30B7\u30FC\u30F3\u3092ZIP\u3067\u307E\u3068\u3081\u3066\u66F8\u304D\u51FA\u3057")), React.createElement("button", {
     className: "ctxItem",
     onClick: () => {
+      fontRef.current?.click();
+      setFileMenu(false);
+    }
+  }, React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 8
+    }
+  }, React.createElement(Icon, {
+    name: "code"
+  }), "\uFF0B \u30AB\u30B9\u30BF\u30E0\u30D5\u30A9\u30F3\u30C8\u3092\u8FFD\u52A0")), React.createElement("button", {
+    className: "ctxItem",
+    onClick: () => {
       setHintsDone(false);
       setFileMenu(false);
     }
@@ -11993,6 +12144,15 @@ function SvgMotionStudio() {
       display: "none"
     },
     onChange: importCsv
+  }), React.createElement("input", {
+    ref: fontRef,
+    type: "file",
+    accept: ".ttf,.otf,.woff,.woff2",
+    multiple: true,
+    style: {
+      display: "none"
+    },
+    onChange: onCustomFontFile
   }), React.createElement("button", {
     className: "btn",
     style: S.primaryBtn,
