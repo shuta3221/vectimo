@@ -2753,7 +2753,7 @@ const defaultImgSetting = () => ({
 });
 const SVGNS = "http://www.w3.org/2000/svg";
 const XHTML = "http://www.w3.org/1999/xhtml";
-const APP_BUILD = "2026-07-17.1";
+const APP_BUILD = "2026-07-17.2";
 const Icon = ({
   name,
   size = 16,
@@ -4477,6 +4477,24 @@ function bakeCoverImage(dataUrl, box) {
     img.src = dataUrl;
   });
 }
+function groupTextLeafs(tx) {
+  const leafs = tx.children.length ? Array.from(tx.querySelectorAll("tspan")).filter(t => !t.children.length) : [tx];
+  const groups = [];
+  let cur = null,
+    curY = undefined;
+  leafs.forEach(leaf => {
+    const y = leaf.getAttribute("y");
+    if (cur && y !== null && y !== curY) {
+      groups.push(cur);
+      cur = null;
+    }
+    if (!cur) cur = [];
+    cur.push(leaf);
+    if (y !== null) curY = y;
+  });
+  if (cur) groups.push(cur);
+  return groups;
+}
 function getPartTextUnits(svgText, uid) {
   const parsed = parseSvg(svgText);
   if (parsed.error) return [];
@@ -4484,9 +4502,8 @@ function getPartTextUnits(svgText, uid) {
   if (!el) return [];
   const texts = el.tagName === "text" ? [el] : Array.from(el.querySelectorAll("text"));
   const units = [];
-  texts.forEach((tx, ti) => {
-    const leafs = tx.children.length ? Array.from(tx.querySelectorAll("tspan")).filter(t => !t.children.length) : [tx];
-    leafs.forEach(leaf => units.push(leaf.textContent));
+  texts.forEach(tx => {
+    groupTextLeafs(tx).forEach(group => units.push(group.map(l => l.textContent).join("")));
   });
   return units;
 }
@@ -4496,13 +4513,19 @@ function setPartTextUnit(svgText, uid, unitIndex, value) {
   const el = parsed.children[+uid.slice(1)];
   if (!el) return svgText;
   const texts = el.tagName === "text" ? [el] : Array.from(el.querySelectorAll("text"));
-  const leafs = [];
-  texts.forEach(tx => {
-    const ls = tx.children.length ? Array.from(tx.querySelectorAll("tspan")).filter(t => !t.children.length) : [tx];
-    ls.forEach(l => leafs.push(l));
-  });
-  if (!leafs[unitIndex]) return svgText;
-  leafs[unitIndex].textContent = value;
+  const groups = [];
+  texts.forEach(tx => groupTextLeafs(tx).forEach(g => groups.push(g)));
+  const group = groups[unitIndex];
+  if (!group) return svgText;
+  const chars = [...value];
+  if (group.length > 1 && chars.length === group.length) {
+    group.forEach((leaf, i) => {
+      leaf.textContent = chars[i];
+    });
+  } else {
+    group[0].textContent = value;
+    for (let i = 1; i < group.length; i++) group[i].textContent = "";
+  }
   if (!parsed.root.getAttribute("xmlns")) parsed.root.setAttribute("xmlns", "http://www.w3.org/2000/svg");
   return new XMLSerializer().serializeToString(parsed.root);
 }
