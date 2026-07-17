@@ -2797,7 +2797,7 @@ const defaultImgSetting = () => ({
 });
 const SVGNS = "http://www.w3.org/2000/svg";
 const XHTML = "http://www.w3.org/1999/xhtml";
-const APP_BUILD = "2026-07-17.4";
+const APP_BUILD = "2026-07-17.5";
 const Icon = ({
   name,
   size = 16,
@@ -3369,7 +3369,11 @@ function measurePartBBox(svgText, uid) {
         x,
         y,
         w: Math.max(...xs) - x,
-        h: Math.max(...ys) - y
+        h: Math.max(...ys) - y,
+        lx: b.x,
+        ly: b.y,
+        lw: b.width,
+        lh: b.height
       };
     }
     document.body.removeChild(host);
@@ -5574,10 +5578,14 @@ function transformPartScaleXY(svgText, uid, sx, sy, anchorRelX, anchorRelY) {
     };
   }
   if (!bb || !bb.w && !bb.h) return svgText;
-  const ax = +(bb.x + bb.w * anchorRelX).toFixed(2);
-  const ay = +(bb.y + bb.h * anchorRelY).toFixed(2);
+  const lx = bb.lx ?? bb.x,
+    ly = bb.ly ?? bb.y,
+    lw = bb.lw ?? bb.w,
+    lh = bb.lh ?? bb.h;
+  const ax = +(lx + lw * anchorRelX).toFixed(2);
+  const ay = +(ly + lh * anchorRelY).toFixed(2);
   const t = el.getAttribute("transform") || "";
-  el.setAttribute("transform", `translate(${ax} ${ay}) scale(${sx.toFixed(4)} ${sy.toFixed(4)}) translate(${-ax} ${-ay})${t ? " " + t : ""}`);
+  el.setAttribute("transform", `${t ? t + " " : ""}translate(${ax} ${ay}) scale(${sx.toFixed(4)} ${sy.toFixed(4)}) translate(${-ax} ${-ay})`);
   if (!parsed.root.getAttribute("xmlns")) parsed.root.setAttribute("xmlns", SVGNS);
   return new XMLSerializer().serializeToString(parsed.root);
 }
