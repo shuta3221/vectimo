@@ -2753,7 +2753,7 @@ const defaultImgSetting = () => ({
 });
 const SVGNS = "http://www.w3.org/2000/svg";
 const XHTML = "http://www.w3.org/1999/xhtml";
-const APP_BUILD = "2026-07-17.2";
+const APP_BUILD = "2026-07-17.3";
 const Icon = ({
   name,
   size = 16,
@@ -4495,27 +4495,41 @@ function groupTextLeafs(tx) {
   if (cur) groups.push(cur);
   return groups;
 }
+function getSortedTextGroups(el) {
+  const texts = el.tagName === "text" ? [el] : Array.from(el.querySelectorAll("text"));
+  const groups = [];
+  texts.forEach(tx => {
+    const tm = (tx.getAttribute("transform") || "").match(/translate\(\s*([-\d.]+)(?:[,\s]+([-\d.]+))?/);
+    const dtx = tm ? parseFloat(tm[1]) || 0 : 0;
+    const dty = tm ? parseFloat(tm[2]) || 0 : 0;
+    const baseY = (parseFloat(tx.getAttribute("y")) || 0) + dty;
+    const baseX = (parseFloat(tx.getAttribute("x")) || 0) + dtx;
+    groupTextLeafs(tx).forEach(leafs => {
+      const ly = parseFloat(leafs[0].getAttribute("y"));
+      const lx = parseFloat(leafs[0].getAttribute("x"));
+      groups.push({
+        leafs,
+        y: Number.isFinite(ly) ? ly + dty : baseY,
+        x: Number.isFinite(lx) ? lx + dtx : baseX
+      });
+    });
+  });
+  groups.sort((a, b) => a.y - b.y || a.x - b.x);
+  return groups;
+}
 function getPartTextUnits(svgText, uid) {
   const parsed = parseSvg(svgText);
   if (parsed.error) return [];
   const el = parsed.children[+uid.slice(1)];
   if (!el) return [];
-  const texts = el.tagName === "text" ? [el] : Array.from(el.querySelectorAll("text"));
-  const units = [];
-  texts.forEach(tx => {
-    groupTextLeafs(tx).forEach(group => units.push(group.map(l => l.textContent).join("")));
-  });
-  return units;
+  return getSortedTextGroups(el).map(g => g.leafs.map(l => l.textContent).join(""));
 }
 function setPartTextUnit(svgText, uid, unitIndex, value) {
   const parsed = parseSvg(svgText);
   if (parsed.error) return svgText;
   const el = parsed.children[+uid.slice(1)];
   if (!el) return svgText;
-  const texts = el.tagName === "text" ? [el] : Array.from(el.querySelectorAll("text"));
-  const groups = [];
-  texts.forEach(tx => groupTextLeafs(tx).forEach(g => groups.push(g)));
-  const group = groups[unitIndex];
+  const group = getSortedTextGroups(el)[unitIndex]?.leafs;
   if (!group) return svgText;
   const chars = [...value];
   if (group.length > 1 && chars.length === group.length) {
